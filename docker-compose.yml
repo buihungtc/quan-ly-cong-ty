@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  quanlyhopdong:
+    build: .
+    container_name: quan-ly-hop-dong
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./contracts.db:/app/contracts.db
+
+    restart: always

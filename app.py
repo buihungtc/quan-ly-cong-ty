@@ -47,17 +47,36 @@ def load_config():
     except Exception:
         return DEFAULT_CONFIG
 
+# Load dotenv if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 config = load_config()
-PASSCODE = config.get("PASSCODE", "123456")
-NGROK_AUTHTOKEN = config.get("NGROK_AUTHTOKEN", "")
-GEMINI_API_KEY = config.get("GEMINI_API_KEY", "")
-TELEGRAM_ENABLED = config.get("TELEGRAM_ENABLED", False)
-TELEGRAM_TIME = config.get("TELEGRAM_TIME", "09:00")
-TELEGRAM_BOT_TOKEN = config.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = config.get("TELEGRAM_CHAT_ID", "")
+
+# Ưu tiên đọc từ biến môi trường (Docker/Server/.env), nếu không có thì đọc từ config.json (Local/Electron)
+PASSCODE = os.environ.get("PASSCODE") or config.get("PASSCODE", "123456")
+NGROK_AUTHTOKEN = os.environ.get("NGROK_AUTHTOKEN") or config.get("NGROK_AUTHTOKEN", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or config.get("GEMINI_API_KEY", "")
+
+# Xử lý kiểu boolean cho biến Telegram Enabled từ env
+env_telegram_enabled = os.environ.get("TELEGRAM_ENABLED")
+if env_telegram_enabled is not None:
+    TELEGRAM_ENABLED = env_telegram_enabled.lower() in ("true", "1", "yes")
+else:
+    TELEGRAM_ENABLED = config.get("TELEGRAM_ENABLED", False)
+
+TELEGRAM_TIME = os.environ.get("TELEGRAM_TIME") or config.get("TELEGRAM_TIME", "09:00")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or config.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID") or config.get("TELEGRAM_CHAT_ID", "")
+
 
 # Khởi tạo Database
 database.init_db()
+
+
 
 # Biến lưu ngrok public URL và lỗi (được cập nhật bởi thread ngrok)
 NGROK_PUBLIC_URL = None
@@ -667,16 +686,17 @@ def start_ngrok(port):
     """Khởi động ngrok tunnel và lưu URL vào biến toàn cục"""
     global NGROK_PUBLIC_URL, NGROK_ERROR
     NGROK_ERROR = None
+    if not NGROK_AUTHTOKEN:
+        print("[ngrok] NGROK_AUTHTOKEN is not set or empty. Skipping ngrok setup.")
+        return
     try:
         from pyngrok import ngrok
-        if NGROK_AUTHTOKEN:
-            ngrok.set_auth_token(NGROK_AUTHTOKEN)
-            print("[ngrok] Authtoken applied from config.json.")
-        else:
-            print("[ngrok] Warning: NGROK_AUTHTOKEN is not set in config.json.")
+        ngrok.set_auth_token(NGROK_AUTHTOKEN)
+        print("[ngrok] Authtoken applied.")
         public_url = ngrok.connect(port).public_url
         NGROK_PUBLIC_URL = public_url
         NGROK_ERROR = None
+
         print(f"\n========================================================")
         print(f"🚀 ngrok public URL: {public_url}")
         print(f"========================================================\n")
@@ -1010,14 +1030,18 @@ def api_download_docx():
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
+# Khởi chạy luồng Telegram (hỗ trợ cả khi chạy qua Gunicorn/Waitress)
+threading.Thread(target=telegram_worker, daemon=True).start()
+
+
 if __name__ == '__main__':
     # Đọc port từ biến môi trường (Electron truyền vào), mặc định 5000
     port = int(os.environ.get('FLASK_PORT', 5000))
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    
     # Khởi chạy ngrok ở một luồng riêng để không chặn Flask
     threading.Thread(target=start_ngrok, args=(port,), daemon=True).start()
     
-    # Khởi chạy luồng Telegram
-    threading.Thread(target=telegram_worker, daemon=True).start()
-    
     # Khởi chạy Flask Server (tắt debug mode để chạy background threads ổn định hơn và tránh chạy 2 lần start_ngrok do reloader)
-    app.run(host='127.0.0.1', port=port, debug=False)
+    app.run(host=host, port=port, debug=False)
+

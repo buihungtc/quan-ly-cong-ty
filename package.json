@@ -5,7 +5,9 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
+    "serve": "python -m waitress --host=0.0.0.0 --port=5000 app:app",
     "build": "electron-builder build --win --x64",
+
     "build:dir": "electron-builder build --win --x64 --dir"
   },
   "build": {

@@ -8,6 +8,8 @@ venv/
 # Sensitive configuration & local database
 config.json
 contracts.db
+.env
+
 
 # Dependency directories
 node_modules/
