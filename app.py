@@ -10,7 +10,7 @@ import database
 import docx
 import requests
 from datetime import datetime
-
+    
 # Lấy thư mục gốc tương thích với PyInstaller & Electron
 if os.environ.get('APP_BASE_DIR'):
     BASE_DIR = os.environ.get('APP_BASE_DIR')
