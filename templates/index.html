@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Quản lý Tiến độ Hợp đồng 2026</title>
+    <!-- Font chữ hiện đại -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Flatpickr (chọn ngày) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
+    <!-- Style CSS tùy biến -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Nền chuyển động mượt mà -->
+    <div class="bg-gradient"></div>
+
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="glass-header">
+            <div class="logo-section">
+                <i class="fa-solid fa-file-signature logo-icon"></i>
+                <div>
+                    <h1>Hợp Đồng 2026</h1>
+                    <p>Hệ thống theo dõi tiến độ thực hiện</p>
+                </div>
+            </div>
+            
+            <nav class="nav-tabs">
+                <button class="tab-btn active" data-tab="processing">
+                    <i class="fa-solid fa-spinner spinner-pulse"></i> Đang Xử Lý
+                </button>
+                <button class="tab-btn" data-tab="completed">
+                    <i class="fa-solid fa-circle-check"></i> Đã Hoàn Thành
+                </button>
+                <button class="tab-btn" data-tab="statistics">
+                    <i class="fa-solid fa-chart-pie"></i> Thống Kê
+                </button>
+                <button class="tab-btn" data-tab="ai-writer">
+                    <i class="fa-solid fa-robot"></i> Soạn Thảo AI
+                </button>
+            </nav>
+
+            <div class="auth-section">
+                <span id="role-badge" class="badge-role guest"><i class="fa-solid fa-user-lock"></i> Chỉ xem</span>
+                <button id="settings-btn" class="btn btn-secondary admin-only" disabled onclick="openSettingsModal()" title="Cài đặt hệ thống">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+                <button id="auth-btn" class="btn btn-secondary">
+                    <i class="fa-solid fa-key"></i> Mở khóa Admin
+                </button>
+            </div>
+        </header>
+
+        <!-- NỘI DUNG CHÍNH -->
+        <main class="main-content">
+            <!-- TAB ĐANG XỬ LÝ -->
+            <section id="tab-processing" class="tab-pane active">
+                <div class="action-bar">
+                    <h2>Hợp đồng Đang xử lý</h2>
+                    <button id="open-add-modal-btn" class="btn btn-primary admin-only" disabled onclick="openAddContractModal()">
+                        <i class="fa-solid fa-plus"></i> Thêm Hợp Đồng
+                    </button>
+                </div>
+                <div id="processing-list" class="contracts-grid">
+                    <!-- Cards will be rendered dynamically -->
+                    <div class="loading-spinner">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB ĐÃ HOÀN THÀNH -->
+            <section id="tab-completed" class="tab-pane">
+                <div class="action-bar">
+                    <h2>Hợp đồng Đã hoàn thành</h2>
+                </div>
+                <div id="completed-list" class="contracts-grid">
+                    <!-- Cards will be rendered dynamically -->
+                    <div class="loading-spinner">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB THỐNG KÊ -->
+            <section id="tab-statistics" class="tab-pane">
+                <div class="action-bar">
+                    <h2>Thống kê & Báo cáo hiệu suất</h2>
+                </div>
+                
+                <!-- Thẻ chỉ số chính KPI -->
+                <div class="kpi-grid">
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon color-blue"><i class="fa-solid fa-file-lines"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Tổng số Hợp đồng</span>
+                            <span id="stat-total-count" class="kpi-value">0</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon color-gold"><i class="fa-solid fa-coins"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Tổng Giá trị</span>
+                            <span id="stat-total-value" class="kpi-value">0 VND</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon color-primary"><i class="fa-solid fa-spinner spinner-pulse"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Đang Thực hiện</span>
+                            <span id="stat-processing-count" class="kpi-value">0</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon color-green"><i class="fa-solid fa-check-double"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Đã Hoàn thành</span>
+                            <span id="stat-completed-count" class="kpi-value">0</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon color-gold"><i class="fa-solid fa-sack-dollar"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Doanh thu thực tế</span>
+                            <span id="stat-actual-revenue" class="kpi-value">0 VND</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon color-warning"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Doanh thu chưa nhận</span>
+                            <span id="stat-unreceived-revenue" class="kpi-value">0 VND</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card warning-glow">
+                        <div class="kpi-icon color-red"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Trễ hạn</span>
+                            <span id="stat-overdue-count" class="kpi-value">0</span>
+                            <span id="stat-overdue-value" class="kpi-subtext">0 VND</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 20px;">
+                    <div class="chart-container glass-card">
+                        <h3>Tỷ lệ Trạng thái Hợp đồng</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="statusDoughnutChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container glass-card">
+                        <h3>Giá trị Hợp đồng theo Tháng Bắt đầu (12 tháng qua)</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="monthlyValueBarChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container glass-card" style="grid-column: 1 / -1;">
+                        <h3>Doanh thu theo Tháng (Dựa trên ngày thanh toán)</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="revenueMonthlyBarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng hợp đồng đang thực hiện -->
+                <div class="chart-container glass-card" style="margin-top: 20px;">
+                    <h3>Hợp đồng đang thực hiện</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="executing-table">
+                            <thead>
+                                <tr>
+                                    <th>Mã HĐ</th>
+                                    <th>Đối tác</th>
+                                    <th>Giá trị HĐ</th>
+                                    <th>Giá trị còn lại</th>
+                                    <th>Ghi chú tiến độ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="executing-table-body">
+                                <!-- Dữ liệu sẽ được điền ở đây -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB SOẠN THẢO AI -->
+            <section id="tab-ai-writer" class="tab-pane">
+                <div class="ai-writer-container">
+                    <!-- BÊN TRÁI: KHUNG CHAT -->
+                    <div class="ai-chat-column glass-card">
+                        <div class="chat-header">
+                            <h3><i class="fa-solid fa-comments"></i> Hướng dẫn Soạn thảo AI</h3>
+                            <div class="template-selector" style="display:flex; align-items:center; gap:8px;">
+                                <label for="writer-template-select" style="font-size:12px; color:var(--text-secondary);">Chọn mẫu:</label>
+                                <select id="writer-template-select" style="padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); background:rgba(15,23,42,0.45); color:#fff; font-size:12px;">
+                                    <option value="">Không dùng mẫu (AI tự soạn)</option>
+                                </select>
+                                <button type="button" id="btn-manage-templates" class="btn btn-secondary btn-small admin-only" disabled onclick="openTemplatesModal()" title="Quản lý các hợp đồng mẫu" style="padding:5px 8px; font-size:11px;">
+                                    <i class="fa-solid fa-folder-gear"></i> Quản lý mẫu
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="ai-chat-messages" class="chat-messages-area">
+                            <div class="message system">
+                                <div class="message-content">
+                                    Chào bạn! Tôi là trợ lý soạn thảo hợp đồng AI. Hãy chọn một hợp đồng mẫu ở trên hoặc nhập yêu cầu của bạn bên dưới (Ví dụ: <i>"Soạn hợp đồng dịch vụ thiết kế web cho Công ty A, giá 20 triệu"</i>) để tôi bắt đầu soạn thảo.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-input-wrapper">
+                            <textarea id="ai-chat-input" rows="2" placeholder="Nhập yêu cầu soạn thảo hoặc chỉnh sửa hợp đồng tại đây..." required></textarea>
+                            <button id="ai-chat-send-btn" class="btn btn-primary" onclick="handleAiChatSend()">
+                                <i class="fa-solid fa-paper-plane"></i> Gửi
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- BÊN PHẢI: KHUNG XEM TRƯỚC / SOẠN THẢO VĂN BẢN -->
+                    <div class="ai-editor-column glass-card">
+                        <div class="editor-header">
+                            <h3><i class="fa-solid fa-file-invoice"></i> Bản Thảo Hợp Đồng</h3>
+                            <div class="editor-actions">
+                                <button id="btn-export-word" class="btn btn-secondary btn-small" onclick="exportContractToWord()" title="Tải xuống file Word (.docx)">
+                                    <i class="fa-solid fa-file-word" style="color: #38bdf8;"></i> Tải Word
+                                </button>
+                                <button id="btn-save-to-system" class="btn btn-primary btn-small admin-only" disabled onclick="saveDraftToSystem()" title="Nhập và lưu hợp đồng này vào hệ thống">
+                                    <i class="fa-solid fa-download"></i> Lưu vào phần mềm
+                                </button>
+                            </div>
+                        </div>
+                        <div class="editor-paper-wrapper">
+                            <div id="contract-paper-editor" class="paper-editor" contenteditable="true" placeholder="Nội dung bản thảo hợp đồng sẽ xuất hiện tại đây. Bạn có thể tự do gõ và chỉnh sửa trực tiếp trên trang giấy này..."></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- FOOTER TÁC GIẢ -->
+        <footer class="app-footer">
+            <div class="footer-inner">
+                <span class="footer-copy">© 2026 — Hệ thống Quản lý Hợp đồng</span>
+                <div class="footer-author">
+                    <span class="footer-dev-label">Lập trình bởi:</span>
+                    <span class="footer-dev-name">Bùi Duy Hưng</span>
+                    <a href="https://www.facebook.com/buiduyhungtc/" target="_blank" class="footer-link">
+                        <i class="fa-brands fa-facebook"></i> Facebook
+                    </a>
+                    <span class="footer-sep">|</span>
+                    <span class="footer-zalo">
+                        <i class="fa-solid fa-phone"></i> Zalo: 0826 126 222
+                    </span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ================== MODAL: ĐĂNG NHẬP / MỞ KHÓA ADMIN ================== -->
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-content glass-modal small-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-lock"></i> Xác thực Quyền Admin</h3>
+                <button class="close-modal-btn" onclick="closeModal('auth-modal')">&times;</button>
+            </div>
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+                <div class="modal-body">
+                    <p class="modal-hint">Vui lòng nhập Mã khóa (Passcode) để kích hoạt quyền chỉnh sửa dữ liệu.</p>
+                    <div class="form-group">
+                        <label for="admin-passcode">Mã khóa (Passcode)</label>
+                        <div class="passcode-input-wrapper">
+                            <input type="password" id="admin-passcode" placeholder="Nhập mã khóa..." required autocomplete="off">
+                            <button type="button" id="toggle-pwd-btn" onclick="togglePasswordVisibility()">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <span id="auth-error-msg" class="error-text"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('auth-modal')">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Xác nhận</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== MODAL: CÀI ĐẶT HỆ THỐNG ================== -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content glass-modal small-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-gear"></i> Cài đặt Hệ thống</h3>
+                <button class="close-modal-btn" onclick="closeModal('settings-modal')">&times;</button>
+            </div>
+            <form id="settings-form" onsubmit="handleSettingsSubmit(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="settings-gemini-key">Claude API Key</label>
+                        <input type="password" id="settings-gemini-key" placeholder="Nhập Claude API Key để dùng AI...">
+                    </div>
+                    <div class="form-group">
+                        <label for="settings-ngrok-token">Ngrok Authtoken</label>
+                        <input type="password" id="settings-ngrok-token" placeholder="Nhập Ngrok token...">
+                    </div>
+                    <div class="form-group">
+                        <label for="settings-passcode">Đổi Mã khóa Admin mới</label>
+                        <input type="password" id="settings-passcode" placeholder="Mã khóa mới...">
+                    </div>
+                    
+                    <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                    <h4 style="margin-bottom: 15px; color: #38bdf8;"><i class="fa-brands fa-telegram"></i> Cài đặt Gửi báo cáo Telegram tự động</h4>
+                    
+                    <div class="form-group checkbox-group">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="settings-telegram-enabled" style="width: auto;"> Bật Gửi Báo Cáo Tự Động
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="settings-telegram-time">Thời gian gửi (Giờ:Phút)</label>
+                        <input type="time" id="settings-telegram-time" value="09:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="settings-telegram-token">Telegram Bot Token</label>
+                        <input type="password" id="settings-telegram-token" placeholder="Ví dụ: 123456789:ABCdefGHI...">
+                    </div>
+                    <div class="form-group">
+                        <label for="settings-telegram-chatid">Telegram Chat ID</label>
+                        <input type="text" id="settings-telegram-chatid" placeholder="Ví dụ: -100123456789">
+                    </div>
+                    <span id="settings-error-msg" class="error-text"></span>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('settings-modal')">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu cài đặt</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== MODAL: THÊM / SỬA HỢP ĐỒNG ================== -->
+    <div id="add-contract-modal" class="modal-overlay">
+        <div class="modal-content glass-modal">
+            <div class="modal-header">
+                <h3 id="modal-contract-title"><i class="fa-solid fa-file-circle-plus"></i> Thêm Hợp Đồng Mới</h3>
+                <button class="close-modal-btn" onclick="closeModal('add-contract-modal')">&times;</button>
+            </div>
+            <form id="add-contract-form" onsubmit="handleAddContractSubmit(event)">
+                <input type="hidden" id="edit-contract-id" value="">
+                <div class="modal-body">
+                    <div class="form-group ai-upload-group">
+                        <label for="input-contract-file"><strong><i class="fa-solid fa-robot"></i> Đọc Hợp Đồng bằng AI (Tải lên file Word)</strong></label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="input-contract-file" accept=".docx">
+                            <button type="button" id="btn-parse-ai" class="btn btn-secondary" onclick="handleParseAI()">Phân tích</button>
+                        </div>
+                        <span id="ai-loading-msg" style="display:none; color: #38bdf8; font-size: 0.9em; margin-top: 5px;"><i class="fa-solid fa-circle-notch fa-spin"></i> AI đang phân tích dữ liệu, vui lòng chờ...</span>
+                    </div>
+                    <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+                    
+                    <div class="form-row" style="grid-template-columns: 1fr 2fr;">
+                        <div class="form-group">
+                            <label for="input-code">Mã Hợp Đồng</label>
+                            <input type="text" id="input-code" placeholder="Ví dụ: HD-2026-001">
+                        </div>
+                        <div class="form-group">
+                            <label for="input-partner">Tên Đối Tác</label>
+                            <input type="text" id="input-partner" placeholder="Ví dụ: Công ty TNHH Giải pháp Công nghệ">
+                        </div>
+                    </div>
+                    <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                        <div class="form-group">
+                            <label for="input-value">Giá trị HĐ (VND)</label>
+                            <input type="text" id="input-value" placeholder="150.000.000" oninput="formatNumberInput(this)">
+                            <span id="value-preview" class="form-help-text" style="font-size:11px; margin-top:2px;">0 VND</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="input-start-date">Ngày Bắt Đầu</label>
+                            <input type="date" id="input-start-date" placeholder="dd/mm/yyyy">
+                        </div>
+                        <div class="form-group">
+                            <label for="input-end-date">Ngày Kết Thúc</label>
+                            <input type="date" id="input-end-date" placeholder="dd/mm/yyyy">
+                        </div>
+                    </div>
+                    
+                    <!-- Phần danh sách đợt thanh toán -->
+                    <div class="installments-section">
+                        <div class="action-bar" style="margin-bottom: 10px;">
+                            <label><strong>Các Đợt Thanh Toán</strong></label>
+                            <button type="button" class="btn btn-secondary btn-small" onclick="addInstallmentRow()">
+                                <i class="fa-solid fa-plus"></i> Thêm đợt
+                            </button>
+                        </div>
+                        <div id="installments-container">
+                            <!-- Các đợt thanh toán sẽ xuất hiện ở đây -->
+                        </div>
+                    </div>
+                    
+                    <!-- Phần danh sách công việc cần làm -->
+                    <div class="tasks-section" style="margin-top: 15px; margin-bottom: 15px;">
+                        <div class="action-bar" style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            <label><strong><i class="fa-solid fa-list-check"></i> Checklist Công Việc (AI đề xuất hoặc tự thêm)</strong></label>
+                            <button type="button" class="btn btn-secondary btn-small" onclick="addTaskRow()">
+                                <i class="fa-solid fa-plus"></i> Thêm việc
+                            </button>
+                        </div>
+                        <div id="tasks-container" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Các công việc sẽ xuất hiện ở đây -->
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-notes">Ghi Chú Tiến Độ Thực Hiện</label>
+                        <textarea id="input-notes" rows="2" placeholder="Nhập mô tả tiến độ thực hiện chi tiết..."></textarea>
+                    </div>
+                    <span id="add-error-msg" class="error-text"></span>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-contract-modal')">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu Hợp Đồng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== MODAL: CHỈNH SỬA TIẾN ĐỘ HỢP ĐỒNG ================== -->
+    <div id="edit-notes-modal" class="modal-overlay">
+        <div class="modal-content glass-modal small-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-pen"></i> Cập Nhật Tiến Độ Hợp Đồng</h3>
+                <button class="close-modal-btn" onclick="closeModal('edit-notes-modal')">&times;</button>
+            </div>
+            <form id="edit-notes-form" onsubmit="handleEditNotesSubmit(event)">
+                <input type="hidden" id="edit-contract-id">
+                <div class="modal-body">
+                    <div class="contract-info-brief">
+                        <p><strong>Mã HĐ:</strong> <span id="brief-code">HD-X</span></p>
+                        <p><strong>Đối tác:</strong> <span id="brief-partner">Công ty A</span></p>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-notes">Ghi Chú Tiến Độ Thực Hiện</label>
+                        <textarea id="edit-notes" rows="6" placeholder="Mô tả chi tiết tiến độ hiện tại..." required></textarea>
+                    </div>
+                    <span id="edit-error-msg" class="error-text"></span>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-notes-modal')">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu Cập Nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================== MODAL: QUẢN LÝ MẪU HỢP ĐỒNG ================== -->
+    <div id="templates-modal" class="modal-overlay">
+        <div class="modal-content glass-modal" style="max-width: 800px; width: 90%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-folder-gear"></i> Quản Lý Mẫu Hợp Đồng</h3>
+                <button class="close-modal-btn" onclick="closeModal('templates-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div class="action-bar" style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 13px; color: var(--text-secondary);">Danh sách các bản mẫu hợp đồng lưu trong hệ thống.</span>
+                    <button type="button" class="btn btn-primary btn-small" onclick="toggleTemplateForm(true)">
+                        <i class="fa-solid fa-plus"></i> Thêm Mẫu Mới
+                    </button>
+                </div>
+                
+                <!-- Bảng danh sách mẫu -->
+                <div id="templates-list-wrapper">
+                    <table class="executing-table" style="font-size: 13px;">
+                        <thead>
+                            <tr>
+                                <th>Tên Mẫu</th>
+                                <th style="width: 150px; text-align: center;">Hành Động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="templates-table-body">
+                            <!-- Danh sách mẫu sẽ hiển thị ở đây -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Form Thêm / Sửa mẫu (mặc định ẩn) -->
+                <div id="template-editor-form-wrapper" style="display: none; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 15px; margin-top: 15px;">
+                    <h4 id="template-form-title" style="margin-bottom: 15px; color: var(--color-primary);"><i class="fa-solid fa-edit"></i> Chỉnh Sửa Mẫu Hợp Đồng</h4>
+                    <form id="template-editor-form" onsubmit="handleTemplateSave(event)">
+                        <input type="hidden" id="template-id-input">
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="template-name-input">Tên Mẫu Hợp Đồng</label>
+                            <input type="text" id="template-name-input" placeholder="Ví dụ: Hợp đồng thuê xe tự lái" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="template-file-input">Đính Kèm Mẫu Hợp Đồng (File .docx)</label>
+                            <input type="file" id="template-file-input" accept=".docx" style="width: 100%; padding: 6px; border: 1px dashed rgba(255,255,255,0.15); border-radius: 6px; background: rgba(15,23,42,0.45); color: #fff; cursor: pointer;">
+                            <span class="form-help-text" style="font-size:11px; color:var(--text-secondary); margin-top:4px; display:block;">Đính kèm file Word (.docx) để tự động trích xuất nội dung. Nếu không chọn file, hệ thống sẽ sử dụng nội dung nhập bên dưới.</span>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="template-content-input">Nội Dung Chi Tiết Mẫu (Hỗ trợ thay thế bằng tag [Tên], [Giá]...)</label>
+                            <textarea id="template-content-input" rows="12" placeholder="Nhập nội dung mẫu tại đây..." style="width: 100%; font-family: monospace; font-size: 12px; padding: 10px; line-height: 1.5; background: rgba(15,23,42,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;"></textarea>
+                        </div>
+                        <span id="template-error-msg" class="error-text" style="display: block; margin-bottom: 10px;"></span>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="toggleTemplateForm(false)">Hủy</button>
+                            <button type="submit" class="btn btn-primary">Lưu Mẫu</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script điều khiển và API -->
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

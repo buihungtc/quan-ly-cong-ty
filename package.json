@@ -1,0 +1,44 @@
+{
+  "name": "quan-ly-hop-dong",
+  "version": "1.0.0",
+  "description": "Phần mềm Quản lý Hợp đồng 2026",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder build --win --x64",
+    "build:dir": "electron-builder build --win --x64 --dir"
+  },
+  "build": {
+    "appId": "com.company.quanly-hopdong",
+    "productName": "Quản lý Hợp đồng 2026",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "python_dist",
+        "to": "python_dist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Quản lý Hợp đồng 2026"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

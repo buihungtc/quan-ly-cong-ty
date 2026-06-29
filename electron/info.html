@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý Hợp đồng 2026</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f3460 100%);
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 16px 20px 20px;
+      user-select: none;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    body::-webkit-scrollbar { width: 4px; }
+    body::-webkit-scrollbar-track { background: transparent; }
+    body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 10px; }
+    body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+
+    /* ── Header ── */
+    .logo { font-size: 2.2rem; margin-bottom: 4px; filter: drop-shadow(0 0 12px rgba(99,102,241,.7)); }
+    h1   { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 2px; }
+    .sub { font-size: 0.72rem; color: #475569; margin-bottom: 14px; }
+
+    /* ── Status bar ── */
+    .status-row {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.25);
+      border-radius: 8px; padding: 7px 12px; width: 100%; margin-bottom: 10px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; box-shadow: 0 0 6px #22c55e; flex-shrink: 0;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+    .status-text { font-size: .75rem; color: #86efac; }
+
+    /* ── URL block ── */
+    .url-block { width: 100%; margin-bottom: 8px; }
+    .url-label {
+      font-size: .65rem; color: #475569; text-transform: uppercase;
+      letter-spacing: .7px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+    }
+    .ngrok-badge {
+      background: rgba(251,191,36,.12); color: #fbbf24;
+      border: 1px solid rgba(251,191,36,.25); border-radius: 4px;
+      font-size: .6rem; padding: 1px 5px; letter-spacing: .3px;
+    }
+    .url-row { display: flex; align-items: center; gap: 6px; }
+    .url-pill {
+      flex: 1; display: flex; align-items: center; gap: 7px;
+      background: rgba(99,102,241,.1); border: 1px solid rgba(99,102,241,.3);
+      border-radius: 7px; padding: 8px 10px; cursor: pointer;
+      transition: all .2s; min-width: 0;
+    }
+    .url-pill:hover { background: rgba(99,102,241,.2); border-color: rgba(99,102,241,.55); }
+    .url-pill .link-icon { font-size: .9rem; flex-shrink: 0; }
+    .url-pill .link-text {
+      font-size: .8rem; font-weight: 600; color: #818cf8;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .url-pill.disabled { opacity: .45; cursor: default; pointer-events: none; }
+    .url-pill.loading .link-text { color: #475569; font-style: italic; font-weight: 400; }
+
+    /* ── Icon buttons ── */
+    .btn-group { display: flex; gap: 5px; flex-shrink: 0; }
+    .btn-icon {
+      width: 32px; height: 32px; border-radius: 7px; border: none;
+      cursor: pointer; font-size: .85rem; display: flex; align-items: center;
+      justify-content: center; transition: all .2s; flex-shrink: 0;
+    }
+    .btn-open { background: rgba(99,102,241,.2); color: #818cf8; border: 1px solid rgba(99,102,241,.3); }
+    .btn-open:hover { background: #6366f1; color: #fff; transform: translateY(-1px); }
+    .btn-open.disabled { opacity: .35; pointer-events: none; }
+    .btn-copy { background: rgba(255,255,255,.06); color: #64748b; border: 1px solid rgba(255,255,255,.08); }
+    .btn-copy:hover { background: rgba(255,255,255,.12); color: #e2e8f0; transform: translateY(-1px); }
+    .btn-copy.disabled { opacity: .35; pointer-events: none; }
+    .btn-copy.copied { background: rgba(34,197,94,.15); color: #22c55e; border-color: rgba(34,197,94,.3); }
+
+    /* ── Divider ── */
+    .divider { width: 100%; height: 1px; background: rgba(255,255,255,.06); margin: 10px 0; }
+
+    /* ── Settings card (always visible, no collapse) ── */
+    .settings-card {
+      width: 100%;
+      background: rgba(255,255,255,.02);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .settings-title {
+      font-size: .72rem; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: .6px;
+      margin-bottom: 10px;
+    }
+
+    /* ── Input row (label + input + button in one line) ── */
+    .setting-row { margin-bottom: 10px; }
+    .setting-row:last-of-type { margin-bottom: 0; }
+    .setting-label {
+      font-size: .65rem; color: #64748b; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px;
+    }
+    .setting-input-row { display: flex; gap: 6px; align-items: center; }
+
+    /* ── Input with toggle ── */
+    .pw-container {
+      flex: 1; position: relative; display: flex; align-items: center;
+    }
+    .pw-container input {
+      width: 100%;
+      background: rgba(15,23,42,.6); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 6px; padding: 7px 34px 7px 10px;
+      font-size: .78rem; color: #f1f5f9; outline: none;
+      transition: border-color .2s; font-family: inherit;
+    }
+    .pw-container input:focus { border-color: rgba(99,102,241,.6); box-shadow: 0 0 5px rgba(99,102,241,.2); }
+    .btn-eye {
+      position: absolute; right: 7px;
+      background: none; border: none; color: #475569;
+      cursor: pointer; font-size: .9rem; padding: 3px;
+      transition: color .2s; display: flex; align-items: center;
+      user-select: none;
+    }
+    .btn-eye:hover { color: #818cf8; }
+
+    /* ── Save / Connect buttons ── */
+    .btn-save {
+      flex-shrink: 0; padding: 7px 14px;
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      color: #fff; border: none; border-radius: 6px;
+      font-size: .75rem; font-weight: 600; cursor: pointer;
+      transition: all .2s; white-space: nowrap;
+    }
+    .btn-save:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(99,102,241,.4); }
+    .btn-save:disabled { opacity: .5; pointer-events: none; }
+
+    /* ── Inline status messages ── */
+    .inline-status {
+      font-size: .67rem; margin-top: 4px; display: none; line-height: 1.4;
+    }
+    .inline-status.success { display: block; color: #22c55e; }
+    .inline-status.error   { display: block; color: #f87171; }
+    .inline-status.info    { display: block; color: #60a5fa; }
+
+    /* ── Ngrok help link ── */
+    .ngrok-help { margin-top: 4px; }
+    .ngrok-help a { font-size: .65rem; color: #475569; text-decoration: none; transition: color .2s; }
+    .ngrok-help a:hover { color: #818cf8; }
+
+    /* ── Author card ── */
+    .author-card {
+      width: 100%; background: rgba(255,255,255,.02);
+      border-radius: 10px; padding: 10px 14px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .author-label { font-size: .62rem; color: #334155; text-transform: uppercase; letter-spacing: .7px; margin-bottom: 5px; }
+    .author-name  { font-size: .85rem; font-weight: 600; color: #e2e8f0; margin-bottom: 5px; }
+    .contact-item {
+      display: flex; align-items: center; gap: 7px;
+      font-size: .75rem; color: #64748b; margin-bottom: 3px;
+      text-decoration: none; transition: color .2s; cursor: default;
+    }
+    a.contact-item { cursor: pointer; }
+    a.contact-item:hover { color: #818cf8; }
+    .c-icon { width: 15px; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="logo">📋</div>
+  <h1>Quản lý Hợp đồng 2026</h1>
+  <p class="sub">Hệ thống theo dõi tiến độ thực hiện hợp đồng</p>
+
+  <!-- Status -->
+  <div class="status-row">
+    <div class="dot"></div>
+    <span class="status-text">Server đang hoạt động — click link hoặc nhấn 🌐 để mở trình duyệt</span>
+  </div>
+
+  <!-- Local URL -->
+  <div class="url-block">
+    <div class="url-label">🖥️ Truy cập trên máy này</div>
+    <div class="url-row">
+      <div class="url-pill" id="local-pill" onclick="openUrl('local')">
+        <span class="link-icon">🔗</span>
+        <span class="link-text" id="local-url-text">Đang tải...</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn-icon btn-open disabled" id="local-open-btn" title="Mở trình duyệt" onclick="openUrl('local')">🌐</button>
+        <button class="btn-icon btn-copy disabled" id="local-copy-btn" title="Copy link" onclick="copyUrl('local')">📋</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ngrok URL -->
+  <div class="url-block">
+    <div class="url-label">
+      🌍 Truy cập từ xa (Internet)
+      <span class="ngrok-badge">ngrok</span>
+    </div>
+    <div class="url-row">
+      <div class="url-pill loading disabled" id="ngrok-pill" onclick="openUrl('ngrok')">
+        <span class="link-icon">⏳</span>
+        <span class="link-text" id="ngrok-url-text">Đang kết nối ngrok...</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn-icon btn-open disabled" id="ngrok-open-btn" title="Mở trình duyệt" onclick="openUrl('ngrok')">🌐</button>
+        <button class="btn-icon btn-copy disabled" id="ngrok-copy-btn" title="Copy link" onclick="copyUrl('ngrok')">📋</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Settings Card (luôn hiển thị, không collapse) -->
+  <div class="settings-card">
+    <div class="settings-title">⚙️ Cài đặt</div>
+
+    <!-- Passcode row -->
+    <div class="setting-row">
+      <div class="setting-label">🔑 Mã khóa bảo mật (Passcode)</div>
+      <div class="setting-input-row">
+        <div class="pw-container">
+          <input type="password" id="input-passcode" placeholder="Mặc định: 123456" autocomplete="off" />
+          <button class="btn-eye" type="button" id="btn-eye-pass" onclick="toggleEye('input-passcode','btn-eye-pass')" title="Hiện/Ẩn">👁️</button>
+        </div>
+        <button class="btn-save" id="btn-update" onclick="updatePasscode()">💾 Lưu</button>
+      </div>
+      <div id="passcode-status" class="inline-status"></div>
+    </div>
+
+    <!-- Ngrok Authtoken row -->
+    <div class="setting-row">
+      <div class="setting-label">🌐 Ngrok Authtoken <span style="font-size:.6rem;color:#334155;font-weight:400;text-transform:none">(để trống nếu đã cài sẵn trên máy)</span></div>
+      <div class="setting-input-row">
+        <div class="pw-container">
+          <input type="password" id="input-ngrok-token" placeholder="Nhập Ngrok Authtoken..." autocomplete="off" />
+          <button class="btn-eye" type="button" id="btn-eye-token" onclick="toggleEye('input-ngrok-token','btn-eye-token')" title="Hiện/Ẩn">👁️</button>
+        </div>
+        <button class="btn-save" id="btn-ngrok-connect" onclick="connectNgrok()">🔗 Kết nối</button>
+      </div>
+      <div id="ngrok-connect-status" class="inline-status"></div>
+      <div class="ngrok-help">
+        <a href="#" onclick="openLink(event,'https://dashboard.ngrok.com/get-started/your-authtoken')">📎 Lấy authtoken tại ngrok.com</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Author -->
+  <div class="author-card">
+    <div class="author-label">Thông tin tác giả</div>
+    <div class="author-name">✍️ &nbsp;Bùi Duy Hưng</div>
+    <a class="contact-item" href="#" onclick="openLink(event,'https://www.facebook.com/buiduyhungtc/')">
+      <span class="c-icon">📘</span> facebook.com/buiduyhungtc
+    </a>
+    <span class="contact-item">
+      <span class="c-icon">📞</span> Zalo: 0826 126 222
+    </span>
+  </div>
+
+  <script>
+    let urls = { localUrl: null, ngrokUrl: null };
+    let ngrokAttempts = 0;
+    let configLoaded = false;
+
+    // ── Nhận URL từ main process ──
+    window.electronAPI.onUrlsReady((data) => {
+      if (data.localUrl) {
+        setLocalUrl(data.localUrl);
+        if (!configLoaded) {
+          loadConfig(data.localUrl);
+          configLoaded = true;
+        }
+      }
+      if (data.ngrokUrl) {
+        setNgrokUrl(data.ngrokUrl);
+      } else if (data.ngrokError) {
+        setNgrokFailed(data.ngrokError);
+      } else if (!urls.ngrokUrl) {
+        ngrokAttempts++;
+        if (ngrokAttempts > 6) {
+          setNgrokFailed();
+        }
+      }
+    });
+
+    function setLocalUrl(url) {
+      urls.localUrl = url;
+      document.getElementById('local-url-text').textContent = url;
+      document.getElementById('local-pill').classList.remove('disabled', 'loading');
+      document.getElementById('local-open-btn').classList.remove('disabled');
+      document.getElementById('local-copy-btn').classList.remove('disabled');
+    }
+
+    function setNgrokUrl(url) {
+      urls.ngrokUrl = url;
+      const pill = document.getElementById('ngrok-pill');
+      pill.classList.remove('disabled', 'loading');
+      pill.style.background = 'rgba(99,102,241,0.1)';
+      pill.style.borderColor = 'rgba(99,102,241,0.3)';
+      const text = document.getElementById('ngrok-url-text');
+      text.textContent = url;
+      text.style.color = '#818cf8';
+      text.style.textDecoration = 'underline';
+      text.style.fontStyle = 'normal';
+      text.style.fontSize = '';
+      document.getElementById('ngrok-open-btn').classList.remove('disabled');
+      document.getElementById('ngrok-copy-btn').classList.remove('disabled');
+    }
+
+    function setNgrokFailed(msg) {
+      if (urls.ngrokUrl) return;
+      const pill = document.getElementById('ngrok-pill');
+      const text = document.getElementById('ngrok-url-text');
+      pill.classList.remove('loading');
+      pill.classList.add('disabled');
+      pill.style.background = 'rgba(239,68,68,0.06)';
+      pill.style.borderColor = 'rgba(239,68,68,0.25)';
+      text.textContent = msg || 'Chưa bật Ngrok hoặc lỗi đường truyền';
+      text.style.color = '#f87171';
+      text.style.textDecoration = 'none';
+      text.style.fontStyle = 'normal';
+      text.style.fontSize = '0.72rem';
+      if (msg) {
+        const cs = document.getElementById('ngrok-connect-status');
+        cs.textContent = '⚠️ ' + msg + ' — Nhập authtoken mới và nhấn Kết nối để thử lại.';
+        cs.className = 'inline-status error';
+      }
+    }
+
+    // ── Hiện / Ẩn password toggle dùng chung ──
+    function toggleEye(inputId, btnId) {
+      const inp = document.getElementById(inputId);
+      const btn = document.getElementById(btnId);
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        inp.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
+    // ── Tải cấu hình từ Flask ──
+    function loadConfig(baseUrl) {
+      const base = baseUrl || urls.localUrl || 'http://127.0.0.1:5173';
+      fetch(`${base}/api/config`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.passcode) document.getElementById('input-passcode').value = data.passcode;
+          if (data.ngrok_token) document.getElementById('input-ngrok-token').value = data.ngrok_token;
+        })
+        .catch(err => console.error('Lỗi tải cấu hình:', err));
+    }
+
+    // ── Lưu Passcode ──
+    async function updatePasscode() {
+      const base = urls.localUrl || 'http://127.0.0.1:5173';
+      const passcode = document.getElementById('input-passcode').value.trim();
+      const statusDiv = document.getElementById('passcode-status');
+      const btn = document.getElementById('btn-update');
+
+      if (!passcode) {
+        statusDiv.textContent = '❌ Passcode không được để trống!';
+        statusDiv.className = 'inline-status error';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Đang lưu...';
+      statusDiv.className = 'inline-status';
+
+      try {
+        const res = await fetch(`${base}/api/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passcode })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.textContent = '✅ Đã lưu passcode thành công!';
+          statusDiv.className = 'inline-status success';
+          setTimeout(() => { statusDiv.className = 'inline-status'; }, 3000);
+        } else {
+          statusDiv.textContent = '❌ Lỗi: ' + data.error;
+          statusDiv.className = 'inline-status error';
+        }
+      } catch (e) {
+        statusDiv.textContent = '❌ Lỗi kết nối đến server.';
+        statusDiv.className = 'inline-status error';
+      }
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu';
+    }
+
+    // ── Kết nối / Kết nối lại Ngrok ──
+    async function connectNgrok() {
+      const base = urls.localUrl || 'http://127.0.0.1:5173';
+      const token = document.getElementById('input-ngrok-token').value.trim();
+      const statusDiv = document.getElementById('ngrok-connect-status');
+      const btn = document.getElementById('btn-ngrok-connect');
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang kết nối...';
+      statusDiv.className = 'inline-status';
+
+      // Reset trạng thái hiển thị ngrok URL
+      urls.ngrokUrl = null;
+      const pill = document.getElementById('ngrok-pill');
+      const text = document.getElementById('ngrok-url-text');
+      pill.classList.add('loading', 'disabled');
+      pill.style.background = '';
+      pill.style.borderColor = '';
+      text.textContent = 'Đang kết nối ngrok...';
+      text.style.color = '';
+      text.style.fontSize = '';
+      document.getElementById('ngrok-open-btn').classList.add('disabled');
+      document.getElementById('ngrok-copy-btn').classList.add('disabled');
+
+      try {
+        const res = await fetch(`${base}/api/ngrok/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authtoken: token })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.textContent = '⏳ Đang kết nối ngrok, vui lòng chờ...';
+          statusDiv.className = 'inline-status info';
+          startNgrokPolling();
+        } else {
+          statusDiv.textContent = '❌ ' + (data.error || 'Kết nối thất bại.');
+          statusDiv.className = 'inline-status error';
+        }
+      } catch (e) {
+        statusDiv.textContent = '❌ Lỗi kết nối đến server.';
+        statusDiv.className = 'inline-status error';
+      }
+      btn.disabled = false;
+      btn.textContent = '🔗 Kết nối';
+    }
+
+    // ── Poll chờ ngrok URL sau khi kết nối ──
+    function startNgrokPolling() {
+      let attempts = 0;
+      const maxAttempts = 20;
+      const statusDiv = document.getElementById('ngrok-connect-status');
+      const poll = async () => {
+        if (attempts >= maxAttempts) {
+          setNgrokFailed('Không thể tạo link ngrok sau 60 giây.');
+          statusDiv.textContent = '❌ Không thể tạo link sau 60 giây. Kiểm tra authtoken và thử lại.';
+          statusDiv.className = 'inline-status error';
+          return;
+        }
+        const base = urls.localUrl || 'http://127.0.0.1:5173';
+        try {
+          const res = await fetch(`${base}/api/server-info`);
+          const info = await res.json();
+          if (info.ngrok_url) {
+            setNgrokUrl(info.ngrok_url);
+            statusDiv.textContent = '✅ Đã kết nối ngrok thành công!';
+            statusDiv.className = 'inline-status success';
+            setTimeout(() => { statusDiv.className = 'inline-status'; }, 5000);
+          } else if (info.ngrok_error) {
+            setNgrokFailed(info.ngrok_error);
+            statusDiv.textContent = '❌ ' + info.ngrok_error;
+            statusDiv.className = 'inline-status error';
+          } else {
+            attempts++;
+            setTimeout(poll, 3000);
+          }
+        } catch (e) {
+          attempts++;
+          setTimeout(poll, 3000);
+        }
+      };
+      setTimeout(poll, 2000);
+    }
+
+    // ── Mở trình duyệt ──
+    function openUrl(type) {
+      const url = type === 'local' ? urls.localUrl : urls.ngrokUrl;
+      if (url) window.electronAPI.openExternal(url);
+    }
+
+    // ── Copy link ──
+    function copyUrl(type) {
+      const url = type === 'local' ? urls.localUrl : urls.ngrokUrl;
+      if (!url) return;
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById(`${type}-copy-btn`);
+        btn.textContent = '✅';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '📋'; btn.classList.remove('copied'); }, 1800);
+      });
+    }
+
+    // ── Mở link ngoài ──
+    function openLink(e, url) {
+      e.preventDefault();
+      window.electronAPI.openExternal(url);
+    }
+  </script>
+</body>
+</html>

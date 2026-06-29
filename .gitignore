@@ -1,0 +1,23 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Sensitive configuration & local database
+config.json
+contracts.db
+
+# Dependency directories
+node_modules/
+
+# PyInstaller & Electron build artifacts
+build/
+dist/
+python_dist/
+*.spec
+
+# OS files
+.DS_Store
+Thumbs.db
