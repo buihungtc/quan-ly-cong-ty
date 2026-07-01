@@ -16,6 +16,7 @@ DB_PATH = os.path.join(BASE_DIR, 'contracts.db')
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -139,6 +140,10 @@ def init_db():
         cursor.execute("ALTER TABLE contracts ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL")
     except sqlite3.OperationalError:
         pass
+
+    # Don dep du lieu mo coi neu co
+    cursor.execute("DELETE FROM installments WHERE contract_id NOT IN (SELECT id FROM contracts)")
+    cursor.execute("DELETE FROM contract_tasks WHERE contract_id NOT IN (SELECT id FROM contracts)")
 
     conn.commit()
     conn.close()
@@ -483,9 +488,10 @@ def get_statistics(bank_account_id=None):
         ''', (filter_val,))
     else:
         cursor.execute('''
-            SELECT SUM(amount) as actual_revenue 
-            FROM installments 
-            WHERE is_paid = 1
+            SELECT SUM(i.amount) as actual_revenue 
+            FROM installments i
+            JOIN contracts c ON i.contract_id = c.id
+            WHERE i.is_paid = 1
         ''')
     actual_revenue_row = cursor.fetchone()
     actual_revenue = actual_revenue_row['actual_revenue'] or 0
@@ -500,9 +506,10 @@ def get_statistics(bank_account_id=None):
         ''', (filter_val,))
     else:
         cursor.execute('''
-            SELECT SUM(amount) as unreceived_revenue 
-            FROM installments 
-            WHERE is_paid = 0 OR is_paid IS NULL
+            SELECT SUM(i.amount) as unreceived_revenue 
+            FROM installments i
+            JOIN contracts c ON i.contract_id = c.id
+            WHERE i.is_paid = 0 OR i.is_paid IS NULL
         ''')
     unreceived_revenue_row = cursor.fetchone()
     unreceived_revenue = unreceived_revenue_row['unreceived_revenue'] or 0
@@ -539,9 +546,10 @@ def get_statistics(bank_account_id=None):
         ''', (filter_val,))
     else:
         cursor.execute('''
-            SELECT strftime('%Y-%m', paid_date) as month, SUM(amount) as revenue
-            FROM installments
-            WHERE is_paid = 1 AND paid_date IS NOT NULL AND paid_date != ''
+            SELECT strftime('%Y-%m', i.paid_date) as month, SUM(i.amount) as revenue
+            FROM installments i
+            JOIN contracts c ON i.contract_id = c.id
+            WHERE i.is_paid = 1 AND i.paid_date IS NOT NULL AND i.paid_date != ''
             GROUP BY month
             ORDER BY month ASC
             LIMIT 12
