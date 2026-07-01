@@ -82,12 +82,32 @@ database.init_db()
 NGROK_PUBLIC_URL = None
 NGROK_ERROR = None
 
-# Helper kiểm tra Passcode cho các API ghi dữ liệu
+# Helper lấy thông tin người dùng hiện tại từ token phiên làm việc
+def get_current_user():
+    token = request.headers.get('X-Auth-Token') or request.headers.get('X-Passcode')
+    if not token:
+        return None
+    return database.verify_session(token)
+
+# Helper kiểm tra quyền Admin cho các API ghi/chỉnh sửa dữ liệu (tương thích ngược tên hàm)
 def verify_passcode():
+    # Kiểm tra token phiên trước
+    user = get_current_user()
+    if user:
+        return user.get('role') == 'admin'
+    
+    # Fallback kiểm tra passcode dạng thô
     client_passcode = request.headers.get('X-Passcode')
-    if client_passcode != PASSCODE:
-        return False
-    return True
+    if client_passcode == PASSCODE:
+        return True
+    
+    # Kiểm tra nếu passcode thô chính là mật khẩu admin trong DB
+    if client_passcode:
+        user_db = database.verify_user('admin', client_passcode)
+        if user_db:
+            return True
+            
+    return False
 
 # ----------------- ROUTES GIAO DIỆN -----------------
 @app.route('/')
@@ -97,6 +117,8 @@ def index():
 # ----------------- ROUTES API -----------------
 @app.route('/api/contracts', methods=['GET'])
 def api_get_contracts():
+    if not get_current_user():
+        return jsonify({"error": "Vui lòng đăng nhập để xem dữ liệu."}), 401
     status = request.args.get('status') # 'processing' hoặc 'completed'
     try:
         contracts = database.get_contracts(status)
@@ -287,8 +309,16 @@ def api_add_contract():
     end_date = data.get('end_date', '').strip()
     progress_notes = data.get('progress_notes', '').strip()
     installments_data = data.get('installments', [])
-        
     tasks_data = data.get('tasks', [])
+    
+    bank_account_id = data.get('bank_account_id')
+    if bank_account_id == '':
+        bank_account_id = None
+    elif bank_account_id is not None:
+        try:
+            bank_account_id = int(bank_account_id)
+        except ValueError:
+            bank_account_id = None
         
     try:
         value = float(value) if value else 0
@@ -296,7 +326,7 @@ def api_add_contract():
         value = 0
         
     contract_id, error_msg = database.add_contract(
-        contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data, tasks_data
+        contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data, tasks_data, bank_account_id
     )
     
     if error_msg:
@@ -306,6 +336,8 @@ def api_add_contract():
 
 @app.route('/api/contracts/<int:contract_id>', methods=['GET'])
 def api_get_contract(contract_id):
+    if not get_current_user():
+        return jsonify({"error": "Vui lòng đăng nhập để xem dữ liệu."}), 401
     try:
         contract = database.get_contract_by_id(contract_id)
         if contract:
@@ -331,8 +363,16 @@ def api_edit_contract(contract_id):
     end_date = data.get('end_date', '').strip()
     progress_notes = data.get('progress_notes', '').strip()
     installments_data = data.get('installments', [])
-        
     tasks_data = data.get('tasks', [])
+    
+    bank_account_id = data.get('bank_account_id')
+    if bank_account_id == '':
+        bank_account_id = None
+    elif bank_account_id is not None:
+        try:
+            bank_account_id = int(bank_account_id)
+        except ValueError:
+            bank_account_id = None
         
     try:
         value = float(value) if value else 0
@@ -340,7 +380,7 @@ def api_edit_contract(contract_id):
         value = 0
         
     success, error_msg = database.update_contract(
-        contract_id, contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data, tasks_data
+        contract_id, contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data, tasks_data, bank_account_id
     )
     
     if not success:
@@ -430,11 +470,194 @@ def api_complete_task(task_id):
 
 @app.route('/api/stats', methods=['GET'])
 def api_get_stats():
+    if not get_current_user():
+        return jsonify({"error": "Vui lòng đăng nhập để xem dữ liệu."}), 401
     try:
-        stats = database.get_statistics()
+        bank_account_id = request.args.get('bank_account_id')
+        stats = database.get_statistics(bank_account_id)
         return jsonify(stats)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not username or not password:
+        return jsonify({"success": False, "error": "Thiếu tên đăng nhập hoặc mật khẩu."}), 400
+        
+    user = database.verify_user(username, password)
+    if user:
+        token = database.generate_token(user['username'], user['role'])
+        return jsonify({
+            "success": True,
+            "username": user['username'],
+            "role": user['role'],
+            "token": token
+        })
+    else:
+        return jsonify({"success": False, "error": "Tên đăng nhập hoặc mật khẩu không chính xác."}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    token = request.headers.get('X-Auth-Token')
+    if token:
+        database.delete_session(token)
+    return jsonify({"success": True, "message": "Đã đăng xuất thành công."})
+
+@app.route('/api/verify-token', methods=['GET'])
+def api_verify_token():
+    token = request.headers.get('X-Auth-Token')
+    if not token:
+        return jsonify({"success": False, "error": "Thiếu token xác thực."}), 401
+    user = database.verify_session(token)
+    if user:
+        return jsonify({
+            "success": True,
+            "username": user['username'],
+            "role": user['role']
+        })
+    else:
+        return jsonify({"success": False, "error": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn."}), 401
+
+@app.route('/api/admin/change-password', methods=['POST'])
+def api_change_password():
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+        
+    data = request.json or {}
+    new_password = data.get('new_password', '').strip()
+    if not new_password:
+        return jsonify({"error": "Mật khẩu mới không được để trống."}), 400
+        
+    success = database.update_user_password('admin', new_password)
+    if success:
+        # Đồng bộ passcode cũ để tương thích với Electron
+        global PASSCODE
+        PASSCODE = new_password
+        try:
+            cfg = load_config()
+            cfg['PASSCODE'] = new_password
+            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        return jsonify({"success": True, "message": "Đổi mật khẩu Admin thành công!"})
+    else:
+        return jsonify({"error": "Không thể đổi mật khẩu."}), 500
+
+@app.route('/api/admin/guests', methods=['GET'])
+def api_get_guests():
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+    guests = database.get_guest_users()
+    return jsonify(guests)
+
+@app.route('/api/admin/create-guest', methods=['POST'])
+def api_create_guest():
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+        
+    data = request.json or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not username or not password:
+        return jsonify({"error": "Thiếu tên đăng nhập hoặc mật khẩu tài khoản khách."}), 400
+        
+    if username == 'admin':
+        return jsonify({"error": "Không thể tạo tài khoản khách trùng tên với admin."}), 400
+        
+    success, err = database.create_guest_user(username, password)
+    if success:
+        return jsonify({"success": True, "message": f"Tạo tài khoản khách '{username}' thành công!"}), 201
+    else:
+        return jsonify({"error": err or "Không thể tạo tài khoản khách."}), 400
+
+@app.route('/api/admin/guests/<username>', methods=['DELETE'])
+def api_delete_guest(username):
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+        
+    if username == 'guest':
+        return jsonify({"error": "Không thể xóa tài khoản khách mặc định."}), 400
+        
+    success = database.delete_guest_user(username)
+    if success:
+        return jsonify({"success": True, "message": f"Đã xóa tài khoản khách '{username}'."})
+    else:
+        return jsonify({"error": "Không tìm thấy tài khoản khách."}), 404
+
+# ----------------- ROUTES API TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG -----------------
+@app.route('/api/bank-accounts', methods=['GET'])
+def api_get_bank_accounts():
+    if not get_current_user():
+        return jsonify({"error": "Vui lòng đăng nhập để xem dữ liệu."}), 401
+    try:
+        accounts = database.get_bank_accounts()
+        return jsonify(accounts)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/bank-accounts', methods=['POST'])
+def api_add_bank_account():
+    if not verify_passcode():
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+    
+    data = request.json or {}
+    bank_name = data.get('bank_name', '').strip()
+    account_number = data.get('account_number', '').strip()
+    account_holder = data.get('account_holder', '').strip()
+    description = data.get('description', '').strip()
+    
+    if not bank_name or not account_number or not account_holder:
+        return jsonify({"error": "Vui lòng nhập đầy đủ Tên ngân hàng, Số tài khoản và Tên chủ tài khoản."}), 400
+        
+    account_id, error_msg = database.add_bank_account(bank_name, account_number, account_holder, description)
+    if error_msg:
+        return jsonify({"error": error_msg}), 400
+        
+    return jsonify({"message": "Thêm tài khoản ngân hàng thụ hưởng thành công!", "id": account_id}), 201
+
+@app.route('/api/bank-accounts/<int:bank_account_id>', methods=['PUT'])
+def api_update_bank_account(bank_account_id):
+    if not verify_passcode():
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+        
+    data = request.json or {}
+    bank_name = data.get('bank_name', '').strip()
+    account_number = data.get('account_number', '').strip()
+    account_holder = data.get('account_holder', '').strip()
+    description = data.get('description', '').strip()
+    
+    if not bank_name or not account_number or not account_holder:
+        return jsonify({"error": "Vui lòng nhập đầy đủ Tên ngân hàng, Số tài khoản và Tên chủ tài khoản."}), 400
+        
+    success, error_msg = database.update_bank_account(bank_account_id, bank_name, account_number, account_holder, description)
+    if error_msg:
+        return jsonify({"error": error_msg}), 400
+        
+    if success:
+        return jsonify({"message": "Cập nhật tài khoản ngân hàng thụ hưởng thành công!"})
+    else:
+        return jsonify({"error": "Không tìm thấy tài khoản ngân hàng hoặc số tài khoản đã tồn tại."}), 404
+
+@app.route('/api/bank-accounts/<int:bank_account_id>', methods=['DELETE'])
+def api_delete_bank_account(bank_account_id):
+    if not verify_passcode():
+        return jsonify({"error": "Bạn không có quyền thực hiện hành động này."}), 403
+        
+    success = database.delete_bank_account(bank_account_id)
+    if success:
+        return jsonify({"message": "Đã xóa tài khoản ngân hàng thụ hưởng thành công!"})
+    else:
+        return jsonify({"error": "Không tìm thấy tài khoản ngân hàng."}), 404
 
 @app.route('/api/verify-passcode', methods=['POST'])
 def api_verify_passcode():
@@ -442,7 +665,9 @@ def api_verify_passcode():
     if not data or 'passcode' not in data:
         return jsonify({"success": False, "error": "Thiếu mã khóa."}), 400
     
-    if data.get('passcode') == PASSCODE:
+    passcode = data.get('passcode')
+    user = database.verify_user('admin', passcode)
+    if passcode == PASSCODE or user is not None:
         return jsonify({"success": True})
     else:
         return jsonify({"success": False, "error": "Mã khóa không chính xác."})
@@ -719,6 +944,8 @@ def start_ngrok(port):
 
 @app.route('/api/ai-writer/templates', methods=['GET'])
 def api_get_templates():
+    if not get_current_user():
+        return jsonify({"error": "Vui lòng đăng nhập để xem dữ liệu."}), 401
     templates = database.get_templates()
     return jsonify(templates)
 

@@ -1,13 +1,281 @@
 // TRẠNG THÁI ỨNG DỤNG (STATE)
 let appState = {
     isAdmin: false,
-    passcode: '',
+    username: '',
+    role: '',
+    token: '',
     activeTab: 'processing',
     charts: {
         status: null,
-        monthly: null
+        monthly: null,
+        revenue: null
     }
 };
+
+// Helper tạo headers có token xác thực
+function getAuthHeaders(contentType = 'application/json') {
+    const headers = {};
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+    if (appState.token) {
+        headers['X-Auth-Token'] = appState.token;
+        headers['X-Passcode'] = appState.token; // Tương thích ngược với các hàm cũ
+    }
+    return headers;
+}
+
+// Xác thực Token với backend khi tải lại trang
+async function verifyAuthToken(token) {
+    try {
+        const response = await fetch('/api/verify-token', {
+            headers: {
+                'X-Auth-Token': token
+            }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                return { username: data.username, role: data.role };
+            }
+        }
+        return null;
+    } catch (e) {
+        console.error('Lỗi xác thực token:', e);
+        return null;
+    }
+}
+
+function setLoginState(isLoggedIn, username = '', role = '', token = '') {
+    appState.username = username;
+    appState.role = role;
+    appState.token = token;
+    appState.isAdmin = (role === 'admin');
+    
+    const loginModal = document.getElementById('login-modal');
+    const roleBadge = document.getElementById('role-badge');
+    const adminOnlyElements = document.querySelectorAll('.admin-only');
+    const sidebarUserEl = document.getElementById('sidebar-username');
+    
+    if (sidebarUserEl) {
+        sidebarUserEl.innerText = username || 'guest';
+    }
+    
+    if (isLoggedIn) {
+        // Ẩn lớp phủ đăng nhập
+        if (loginModal) loginModal.style.display = 'none';
+        
+        // Lưu token vào localStorage
+        localStorage.setItem('auth_token', token);
+        
+        // Thiết lập huy hiệu vai trò trên Header/Sidebar
+        if (role === 'admin') {
+            if (roleBadge) {
+                roleBadge.innerHTML = '<i class="fa-solid fa-user-gear"></i> Admin (Sửa)';
+                roleBadge.className = 'badge-role admin';
+            }
+            
+            // Kích hoạt các nút chỉ dành cho Admin
+            adminOnlyElements.forEach(el => {
+                el.removeAttribute('disabled');
+            });
+        } else {
+            if (roleBadge) {
+                roleBadge.innerHTML = '<i class="fa-solid fa-user-lock"></i> Chỉ xem';
+                roleBadge.className = 'badge-role guest';
+            }
+            
+            // Vô hiệu hóa nút
+            adminOnlyElements.forEach(el => {
+                el.setAttribute('disabled', 'true');
+            });
+        }
+        
+        // Tải danh sách tài khoản ngân hàng thụ hưởng
+        loadBankAccounts();
+
+        // Tải dữ liệu trang hiện tại và đồng bộ menu active
+        switchTab(appState.activeTab || 'processing');
+    } else {
+        // Hiển thị lớp phủ đăng nhập và focus vào ô Username
+        if (loginModal) {
+            loginModal.style.display = 'flex';
+            document.getElementById('login-username').focus();
+        }
+        
+        // Xóa token khỏi localStorage
+        localStorage.removeItem('auth_token');
+        
+        if (roleBadge) {
+            roleBadge.innerHTML = '<i class="fa-solid fa-user-lock"></i> Chưa đăng nhập';
+            roleBadge.className = 'badge-role guest';
+        }
+        
+        adminOnlyElements.forEach(el => {
+            el.setAttribute('disabled', 'true');
+        });
+    }
+}
+
+// Xử lý submit Form Đăng Nhập
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+    const usernameEl = document.getElementById('login-username');
+    const passwordEl = document.getElementById('login-password');
+    const errorEl = document.getElementById('login-error-msg');
+    errorEl.innerText = '';
+    
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            setLoginState(true, result.username, result.role, result.token);
+            showNotification(`Đăng nhập thành công với tài khoản ${result.username}!`, 'success');
+            passwordEl.value = ''; // Reset password field
+        } else {
+            errorEl.innerText = result.error || 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+        }
+    } catch (e) {
+        errorEl.innerText = 'Không thể kết nối đến server.';
+    }
+}
+
+// Xử lý Đăng xuất
+async function handleLogout() {
+    if (confirm('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?')) {
+        try {
+            await fetch('/api/logout', {
+                method: 'POST',
+                headers: getAuthHeaders(null)
+            });
+        } catch (e) {
+            console.error('Lỗi khi gọi API logout:', e);
+        }
+        setLoginState(false);
+        showNotification('Đăng xuất thành công!', 'info');
+    }
+}
+
+// Xử lý hiển thị mật khẩu ở Login Modal
+function toggleLoginPasswordVisibility() {
+    const pwdInput = document.getElementById('login-password');
+    const eyeIcon = document.querySelector('#toggle-login-pwd-btn i');
+    if (pwdInput.type === 'password') {
+        pwdInput.type = 'text';
+        eyeIcon.className = 'fa-solid fa-eye-slash';
+    } else {
+        pwdInput.type = 'password';
+        eyeIcon.className = 'fa-solid fa-eye';
+    }
+}
+
+// Admin tạo tài khoản khách
+async function handleCreateGuestSubmit() {
+    const usernameEl = document.getElementById('guest-username-input');
+    const passwordEl = document.getElementById('guest-password-input');
+    const errorEl = document.getElementById('guest-error-msg');
+    errorEl.innerText = '';
+    
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value.trim();
+    
+    if (!username || !password) {
+        errorEl.innerText = 'Vui lòng nhập cả tài khoản và mật khẩu.';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/create-guest', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ username, password })
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showNotification(result.message, 'success');
+            usernameEl.value = '';
+            passwordEl.value = '';
+            await loadGuestUsersList();
+        } else {
+            errorEl.innerText = result.error || 'Lỗi tạo tài khoản khách.';
+        }
+    } catch (e) {
+        errorEl.innerText = 'Lỗi kết nối server.';
+    }
+}
+
+// Admin lấy danh sách tài khoản khách
+async function loadGuestUsersList() {
+    const listEl = document.getElementById('guest-users-list');
+    if (!listEl) return;
+    
+    try {
+        const response = await fetch('/api/admin/guests', {
+            headers: getAuthHeaders(null)
+        });
+        if (!response.ok) throw new Error('Không thể tải danh sách tài khoản.');
+        const guests = await response.json();
+        
+        listEl.innerHTML = '';
+        if (guests.length === 0) {
+            listEl.innerHTML = '<div style="color: #64748b; font-size: 12px; text-align: center; padding: 5px;">Chưa có tài khoản khách nào.</div>';
+            return;
+        }
+        
+        guests.forEach(guest => {
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.padding = '6px 8px';
+            div.style.background = 'rgba(255,255,255,0.02)';
+            div.style.borderRadius = '6px';
+            div.style.fontSize = '12px';
+            div.style.border = '1px solid rgba(255,255,255,0.04)';
+            
+            div.innerHTML = `
+                <span style="color: #fff;"><i class="fa-solid fa-user" style="color: #94a3b8; margin-right: 5px;"></i> ${escapeHTML(guest.username)}</span>
+                ${guest.username === 'guest' ? '<span style="font-size: 11px; color: #64748b; font-style: italic;">Mặc định</span>' : `
+                <button type="button" class="btn btn-danger btn-small" onclick="handleDeleteGuest('${escapeQuote(guest.username)}')" style="padding: 2px 6px; font-size: 10px;" title="Xóa tài khoản khách này">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+                `}
+            `;
+            listEl.appendChild(div);
+        });
+    } catch (e) {
+        listEl.innerHTML = `<div style="color: #f87171; font-size: 12px;">Không tải được danh sách: ${e.message}</div>`;
+    }
+}
+
+// Admin xóa tài khoản khách
+async function handleDeleteGuest(username) {
+    if (confirm(`Bạn có chắc chắn muốn xóa tài khoản Khách "${username}"?`)) {
+        try {
+            const response = await fetch(`/api/admin/guests/${username}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(null)
+            });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                showNotification(result.message, 'success');
+                await loadGuestUsersList();
+            } else {
+                showNotification(result.error || 'Lỗi khi xóa tài khoản.', 'error');
+            }
+        } catch (e) {
+            showNotification('Lỗi kết nối máy chủ.', 'error');
+        }
+    }
+}
 
 // ĐỢI TÀI LIỆU TẢI XONG
 document.addEventListener('DOMContentLoaded', () => {
@@ -45,44 +313,30 @@ async function initApp() {
     initFlatpickr('#input-start-date');
     initFlatpickr('#input-end-date');
     
-    // Tự động kiểm tra trạng thái Admin từ localStorage
-    const cachedPasscode = localStorage.getItem('admin_passcode');
-    if (cachedPasscode) {
-        const isValid = await verifyAdminPasscode(cachedPasscode);
-        if (isValid) {
-            setAdminState(true, cachedPasscode);
+    // Tự động kiểm tra trạng thái đăng nhập từ localStorage
+    const cachedToken = localStorage.getItem('auth_token');
+    if (cachedToken) {
+        const user = await verifyAuthToken(cachedToken);
+        if (user) {
+            setLoginState(true, user.username, user.role, cachedToken);
         } else {
-            setAdminState(false);
+            setLoginState(false);
         }
     } else {
-        setAdminState(false);
+        setLoginState(false);
     }
-
-    // Tải dữ liệu ban đầu
-    switchTab('processing');
 }
 
 // THIẾT LẬP CÁC LẮNG NGHE SỰ KIỆN (EVENT LISTENERS)
 function setupEventListeners() {
     // Chuyển Tab
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.tab-btn, .menu-link[data-tab], .submenu-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const tabName = e.currentTarget.getAttribute('data-tab');
-            switchTab(tabName);
+            if (tabName) {
+                switchTab(tabName);
+            }
         });
-    });
-
-    // Mở/Khóa Admin
-    document.getElementById('auth-btn').addEventListener('click', () => {
-        if (appState.isAdmin) {
-            // Thực hiện khóa Admin
-            setAdminState(false);
-            showNotification('Đã thoát chế độ Admin', 'info');
-            refreshCurrentTab();
-        } else {
-            openModal('auth-modal');
-            document.getElementById('admin-passcode').focus();
-        }
     });
 
     // Nút mở Modal thêm hợp đồng
@@ -153,8 +407,8 @@ function formatNumberInput(el) {
 function switchTab(tabName) {
     appState.activeTab = tabName;
     
-    // Cập nhật CSS của nút tab
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    // Cập nhật CSS của nút tab và menu sidebar
+    document.querySelectorAll('.tab-btn, .menu-link, .submenu-link').forEach(btn => {
         if (btn.getAttribute('data-tab') === tabName) {
             btn.classList.add('active');
         } else {
@@ -171,8 +425,34 @@ function switchTab(tabName) {
         }
     });
     
+    // Tự động đóng sidebar trên mobile sau khi chọn tab
+    const sidebar = document.getElementById('app-sidebar');
+    if (sidebar && sidebar.classList.contains('active')) {
+        toggleMobileSidebar();
+    }
+    
     // Load dữ liệu tương ứng
     refreshCurrentTab();
+}
+
+// ẨN / HIỆN MENU CON TRÊN SIDEBAR
+function toggleSubmenu(element) {
+    const menuItem = element.closest('.menu-item');
+    if (menuItem) {
+        menuItem.classList.toggle('open');
+    }
+}
+
+// ẨN / HIỆN SIDEBAR TRÊN DI ĐỘNG (HAMBURGER)
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+        if (overlay) {
+            overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+        }
+    }
 }
 
 // LÀM MỚI TAB HIỆN TẠI
@@ -196,9 +476,10 @@ async function loadContractsList(status, containerId) {
             <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...
         </div>
     `;
-
     try {
-        const response = await fetch(`/api/contracts?status=${status}`);
+        const response = await fetch(`/api/contracts?status=${status}`, {
+            headers: getAuthHeaders(null)
+        });
         if (!response.ok) throw new Error('Không thể tải dữ liệu từ máy chủ.');
         const contracts = await response.json();
         
@@ -239,6 +520,15 @@ function renderContracts(contracts, container, status) {
         const card = document.createElement('div');
         card.className = `contract-card ${isOverdue ? 'overdue-glow' : ''}`;
         
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('button, input, select, label, .checkbox-complete-wrapper')) {
+                return;
+            }
+            if (window.innerWidth <= 768) {
+                card.classList.toggle('expanded');
+            }
+        });
+        
         // HTML của thẻ hợp đồng
         card.innerHTML = `
             <div class="card-header">
@@ -276,11 +566,20 @@ function renderContracts(contracts, container, status) {
                     >
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
+                    <div class="contract-card-toggle-icon" style="margin-left: 5px;"><i class="fa-solid fa-chevron-down"></i></div>
                 </div>
             </div>
             
             <div class="card-body">
                 <h3 class="partner-name" title="${escapeHTML(contract.partner_name)}">${escapeHTML(contract.partner_name)}</h3>
+                
+                ${contract.bank_name ? `
+                <div class="bank-info-badge" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#38bdf8; background:rgba(56,189,248,0.08); padding:4px 8px; border-radius:6px; margin-bottom:8px; border:1px solid rgba(56,189,248,0.15);" title="Tài khoản nhận tiền">
+                    <i class="fa-solid fa-building-columns"></i>
+                    <span>${escapeHTML(contract.bank_name)} - ${escapeHTML(contract.account_number)} (${escapeHTML(contract.account_holder)})</span>
+                </div>
+                ` : ''}
+
                 <div class="value-highlight">
                     <i class="fa-solid fa-coins"></i> ${formatCurrency(contract.value)}
                 </div>
@@ -407,7 +706,13 @@ function renderContracts(contracts, container, status) {
 
 async function loadStatistics() {
     try {
-        const response = await fetch('/api/stats');
+        const bankFilter = document.getElementById('filter-stats-bank');
+        const bankAccountId = bankFilter ? bankFilter.value : '';
+        const url = bankAccountId ? `/api/stats?bank_account_id=${bankAccountId}` : '/api/stats';
+        
+        const response = await fetch(url, {
+            headers: getAuthHeaders(null)
+        });
         if (!response.ok) throw new Error('Không thể tải thống kê.');
         const stats = await response.json();
         
@@ -636,73 +941,7 @@ function renderRevenueChart(revenueData) {
     });
 }
 
-// XỬ LÝ GỬI YÊU CẦU MỞ KHÓA ADMIN (AUTH)
-async function handleAuthSubmit(event) {
-    event.preventDefault();
-    const passcode = document.getElementById('admin-passcode').value;
-    const errorMsg = document.getElementById('auth-error-msg');
-    errorMsg.innerText = '';
-    
-    const isValid = await verifyAdminPasscode(passcode);
-    if (isValid) {
-        setAdminState(true, passcode);
-        localStorage.setItem('admin_passcode', passcode);
-        closeModal('auth-modal');
-        showNotification('Đã mở khóa thành công quyền Admin!', 'success');
-        refreshCurrentTab();
-    } else {
-        errorMsg.innerText = 'Mã khóa không chính xác. Vui lòng thử lại!';
-    }
-}
-
-// XÁC THỰC MÃ KHÓA QUA BACKEND API
-async function verifyAdminPasscode(passcode) {
-    try {
-        const response = await fetch('/api/verify-passcode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ passcode })
-        });
-        const data = await response.json();
-        return data.success === true;
-    } catch (e) {
-        console.error('Lỗi kiểm tra passcode:', e);
-        return false;
-    }
-}
-
-// CẬP NHẬT TRẠNG THÁI GIAO DIỆN KHI ĐỔI QUYỀN ADMIN
-function setAdminState(isAdmin, passcode = '') {
-    appState.isAdmin = isAdmin;
-    appState.passcode = passcode;
-    
-    const authBtn = document.getElementById('auth-btn');
-    const roleBadge = document.getElementById('role-badge');
-    const adminOnlyElements = document.querySelectorAll('.admin-only');
-    
-    if (isAdmin) {
-        authBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Khóa Admin';
-        authBtn.className = 'btn btn-danger';
-        roleBadge.innerHTML = '<i class="fa-solid fa-user-gear"></i> Admin (Sửa)';
-        roleBadge.className = 'badge-role admin';
-        
-        // Kích hoạt các tính năng chỉ dành cho Admin
-        adminOnlyElements.forEach(el => {
-            el.removeAttribute('disabled');
-        });
-    } else {
-        authBtn.innerHTML = '<i class="fa-solid fa-key"></i> Mở khóa Admin';
-        authBtn.className = 'btn btn-secondary';
-        roleBadge.innerHTML = '<i class="fa-solid fa-user-lock"></i> Chỉ xem';
-        roleBadge.className = 'badge-role guest';
-        
-        // Vô hiệu hóa các tính năng
-        adminOnlyElements.forEach(el => {
-            el.setAttribute('disabled', 'true');
-        });
-        localStorage.removeItem('admin_passcode');
-    }
-}
+// Đã thay thế bằng các hàm xác thực và quản lý tài khoản ở đầu file.
 
 // THÊM HỢP ĐỒNG MỚI LÊN HỆ THỐNG
 async function handleAddContractSubmit(event) {
@@ -750,6 +989,7 @@ async function handleAddContractSubmit(event) {
     });
     
     const valueStr = document.getElementById('input-value').value.replace(/\./g, '');
+    const bankSelect = document.getElementById('input-bank-account');
     const contractData = {
         contract_code: document.getElementById('input-code').value.trim(),
         partner_name: document.getElementById('input-partner').value.trim(),
@@ -757,6 +997,7 @@ async function handleAddContractSubmit(event) {
         start_date: document.getElementById('input-start-date').value,
         end_date: document.getElementById('input-end-date').value,
         progress_notes: document.getElementById('input-notes').value.trim(),
+        bank_account_id: bankSelect && bankSelect.value ? parseInt(bankSelect.value) : null,
         installments: installments,
         tasks: tasks
     };
@@ -768,10 +1009,7 @@ async function handleAddContractSubmit(event) {
     try {
         const response = await fetch(url, {
             method: method,
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(contractData)
         });
         
@@ -809,9 +1047,7 @@ async function handleParseAI() {
     try {
         const response = await fetch('/api/parse-contract', {
             method: 'POST',
-            headers: {
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(null),
             body: formData
         });
         
@@ -953,10 +1189,7 @@ async function handleTaskCompletion(taskId, checkbox) {
     try {
         const response = await fetch(`/api/tasks/${taskId}/complete`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ is_completed: isCompleted })
         });
         
@@ -997,6 +1230,10 @@ function openAddContractModal() {
     document.getElementById('modal-contract-title').innerHTML = '<i class="fa-solid fa-file-circle-plus"></i> Thêm Hợp Đồng Mới';
     document.getElementById('edit-contract-id').value = '';
     document.getElementById('add-contract-form').reset();
+    
+    const bankSelect = document.getElementById('input-bank-account');
+    if (bankSelect) bankSelect.value = '';
+    
     setFlatpickrDate('input-start-date', '');
     setFlatpickrDate('input-end-date', '');
     document.getElementById('installments-container').innerHTML = '';
@@ -1012,7 +1249,9 @@ async function openEditContractModal(id, event) {
     if (!appState.isAdmin) return;
 
     try {
-        const response = await fetch(`/api/contracts/${id}`);
+        const response = await fetch(`/api/contracts/${id}`, {
+            headers: getAuthHeaders(null)
+        });
         const contract = await response.json();
         
         if (!response.ok || !contract) throw new Error(contract.error || "Không tìm thấy hợp đồng");
@@ -1022,6 +1261,10 @@ async function openEditContractModal(id, event) {
         document.getElementById('input-code').value = contract.contract_code;
         document.getElementById('input-partner').value = contract.partner_name;
         document.getElementById('input-value').value = contract.value ? contract.value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
+        
+        const bankSelect = document.getElementById('input-bank-account');
+        if (bankSelect) bankSelect.value = contract.bank_account_id || '';
+        
         setFlatpickrDate('input-start-date', contract.start_date);
         setFlatpickrDate('input-end-date', contract.end_date);
         document.getElementById('input-notes').value = contract.progress_notes || '';
@@ -1060,10 +1303,7 @@ async function handleInstallmentPayment(installmentId, checkbox) {
     try {
         const response = await fetch(`/api/installments/${installmentId}/pay`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ is_paid: isPaid, paid_date: paidDate })
         });
         
@@ -1107,10 +1347,7 @@ async function handleEditNotesSubmit(event) {
     try {
         const response = await fetch(`/api/contracts/${contractId}/notes`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ progress_notes })
         });
         
@@ -1138,9 +1375,7 @@ async function handleMarkComplete(id, event) {
         try {
             const response = await fetch(`/api/contracts/${id}/complete`, {
                 method: 'PUT',
-                headers: {
-                    'X-Passcode': appState.passcode
-                }
+                headers: getAuthHeaders(null)
             });
             
             const result = await response.json();
@@ -1167,9 +1402,7 @@ async function handleRevertContract(id, event) {
         try {
             const response = await fetch(`/api/contracts/${id}/revert`, {
                 method: 'PUT',
-                headers: {
-                    'X-Passcode': appState.passcode
-                }
+                headers: getAuthHeaders(null)
             });
             
             const result = await response.json();
@@ -1196,9 +1429,7 @@ async function handleDeleteContract(id, code, event) {
         try {
             const response = await fetch(`/api/contracts/${id}`, {
                 method: 'DELETE',
-                headers: {
-                    'X-Passcode': appState.passcode
-                }
+                headers: getAuthHeaders(null)
             });
             
             const result = await response.json();
@@ -1218,7 +1449,9 @@ async function openSettingsModal() {
     
     // Fetch current config
     try {
-        const response = await fetch('/api/config');
+        const response = await fetch('/api/config', {
+            headers: getAuthHeaders(null)
+        });
         const config = await response.json();
         document.getElementById('settings-gemini-key').value = config.gemini_api_key || '';
         document.getElementById('settings-ngrok-token').value = config.ngrok_token || '';
@@ -1228,6 +1461,13 @@ async function openSettingsModal() {
         document.getElementById('settings-telegram-token').value = config.telegram_bot_token || '';
         document.getElementById('settings-telegram-chatid').value = config.telegram_chat_id || '';
         document.getElementById('settings-error-msg').innerText = '';
+        
+        // Tải danh sách khách
+        await loadGuestUsersList();
+        
+        // Tải danh sách tài khoản ngân hàng thụ hưởng
+        await loadBankAccounts();
+        
         openModal('settings-modal');
     } catch (e) {
         showNotification('Lỗi lấy cấu hình: ' + e.message, 'error');
@@ -1239,6 +1479,24 @@ async function handleSettingsSubmit(event) {
     const errorMsg = document.getElementById('settings-error-msg');
     errorMsg.innerText = '';
     
+    const newPasscode = document.getElementById('settings-passcode').value.trim();
+    if (newPasscode) {
+        try {
+            const pwResponse = await fetch('/api/admin/change-password', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ new_password: newPasscode })
+            });
+            const pwResult = await pwResponse.json();
+            if (!pwResponse.ok) {
+                throw new Error(pwResult.error || 'Lỗi đổi mật khẩu Admin.');
+            }
+        } catch (e) {
+            errorMsg.innerText = e.message;
+            return;
+        }
+    }
+    
     const data = {
         gemini_api_key: document.getElementById('settings-gemini-key').value.trim(),
         ngrok_token: document.getElementById('settings-ngrok-token').value.trim(),
@@ -1248,15 +1506,10 @@ async function handleSettingsSubmit(event) {
         telegram_chat_id: document.getElementById('settings-telegram-chatid').value.trim()
     };
     
-    const newPasscode = document.getElementById('settings-passcode').value.trim();
-    if (newPasscode) {
-        data.passcode = newPasscode;
-    }
-    
     try {
         const response = await fetch('/api/config', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(data)
         });
         const result = await response.json();
@@ -1264,10 +1517,6 @@ async function handleSettingsSubmit(event) {
         if (!response.ok) throw new Error(result.error || 'Lỗi lưu cài đặt');
         
         showNotification('Đã lưu cài đặt thành công!', 'success');
-        if (newPasscode) {
-            appState.passcode = newPasscode;
-            localStorage.setItem('admin_passcode', newPasscode);
-        }
         closeModal('settings-modal');
     } catch (error) {
         errorMsg.innerText = error.message;
@@ -1528,10 +1777,7 @@ async function handleAiChatSend() {
     try {
         const response = await fetch('/api/ai-writer/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 messages: aiWriterHistory,
                 template_id: templateId
@@ -1641,10 +1887,7 @@ async function saveDraftToSystem() {
     try {
         const response = await fetch('/api/parse-contract-text', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ contract_text: text })
         });
         
@@ -1705,7 +1948,9 @@ let currentTemplates = [];
 
 async function loadTemplatesDropdown() {
     try {
-        const response = await fetch('/api/ai-writer/templates');
+        const response = await fetch('/api/ai-writer/templates', {
+            headers: getAuthHeaders(null)
+        });
         if (!response.ok) throw new Error('Không thể tải danh sách mẫu.');
         currentTemplates = await response.json();
         
@@ -1745,7 +1990,9 @@ async function loadTemplatesListTable() {
     `;
     
     try {
-        const response = await fetch('/api/ai-writer/templates');
+        const response = await fetch('/api/ai-writer/templates', {
+            headers: getAuthHeaders(null)
+        });
         if (!response.ok) throw new Error('Không thể lấy danh sách mẫu.');
         currentTemplates = await response.json();
         
@@ -1866,9 +2113,7 @@ async function handleTemplateSave(event) {
     try {
         const response = await fetch(url, {
             method: method,
-            headers: {
-                'X-Passcode': appState.passcode
-            },
+            headers: getAuthHeaders(null),
             body: formData
         });
         
@@ -1896,9 +2141,7 @@ async function deleteTemplate(id) {
         try {
             const response = await fetch(`/api/ai-writer/templates/${id}`, {
                 method: 'DELETE',
-                headers: {
-                    'X-Passcode': appState.passcode
-                }
+                headers: getAuthHeaders(null)
             });
             
             const result = await response.json();
@@ -1913,6 +2156,147 @@ async function deleteTemplate(id) {
         } catch (error) {
             showNotification(error.message, 'error');
         }
+    }
+}
+
+// TẢI DANH SÁCH TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG
+async function loadBankAccounts() {
+    try {
+        const response = await fetch('/api/bank-accounts', {
+            headers: getAuthHeaders(null)
+        });
+        if (!response.ok) throw new Error('Không thể tải danh sách tài khoản ngân hàng.');
+        const accounts = await response.json();
+        
+        // 1. Cập nhật các select dropdowns
+        const inputBank = document.getElementById('input-bank-account');
+        const filterBank = document.getElementById('filter-stats-bank');
+        
+        const originalInputVal = inputBank ? inputBank.value : '';
+        const originalFilterVal = filterBank ? filterBank.value : '';
+        
+        if (inputBank) {
+            inputBank.innerHTML = '<option value="">-- Chọn ngân hàng thụ hưởng --</option>';
+            accounts.forEach(acc => {
+                const opt = document.createElement('option');
+                opt.value = acc.id;
+                opt.innerText = `${acc.bank_name} - ${acc.account_number} (${acc.account_holder})`;
+                inputBank.appendChild(opt);
+            });
+            inputBank.value = originalInputVal;
+        }
+        
+        if (filterBank) {
+            filterBank.innerHTML = '<option value="">-- Tất cả tài khoản --</option>';
+            accounts.forEach(acc => {
+                const opt = document.createElement('option');
+                opt.value = acc.id;
+                opt.innerText = `${acc.bank_name} - ${acc.account_number} (${acc.account_holder})`;
+                filterBank.appendChild(opt);
+            });
+            filterBank.value = originalFilterVal;
+        }
+        
+        // 2. Cập nhật danh sách trong settings modal
+        const listContainer = document.getElementById('bank-accounts-list');
+        if (listContainer) {
+            listContainer.innerHTML = '';
+            if (accounts.length === 0) {
+                listContainer.innerHTML = '<div style="font-size:12px; color:#64748b; font-style:italic; padding:5px; text-align:center;">Chưa cấu hình ngân hàng thụ hưởng nào</div>';
+            } else {
+                accounts.forEach(acc => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.justifyContent = 'space-between';
+                    row.style.alignItems = 'center';
+                    row.style.background = 'rgba(255,255,255,0.02)';
+                    row.style.padding = '6px 10px';
+                    row.style.borderRadius = '6px';
+                    row.style.border = '1px solid rgba(255,255,255,0.04)';
+                    row.innerHTML = `
+                        <div style="font-size:12px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left;">
+                            <strong style="color:#38bdf8;">${escapeHTML(acc.bank_name)}</strong> - <span>${escapeHTML(acc.account_number)}</span>
+                            <div style="font-size:10px; color:#94a3b8; font-style:italic;">Chủ thẻ: ${escapeHTML(acc.account_holder)}</div>
+                        </div>
+                        <button type="button" class="btn btn-danger btn-small" onclick="deleteBankAccount(${acc.id})" style="padding:4px 8px; font-size:10px;" title="Xóa tài khoản ngân hàng thụ hưởng">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    `;
+                    listContainer.appendChild(row);
+                });
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        showNotification(e.message, 'error');
+    }
+}
+
+// THÊM TÀI KHOẢN NGÂN HÀNG MỚI
+async function handleCreateBankAccountSubmit() {
+    const errorMsg = document.getElementById('bank-error-msg');
+    if (errorMsg) errorMsg.innerText = '';
+    
+    const bankNameInput = document.getElementById('bank-name-input');
+    const accountNumberInput = document.getElementById('bank-account-number-input');
+    const accountHolderInput = document.getElementById('bank-account-holder-input');
+    const descriptionInput = document.getElementById('bank-description-input');
+    
+    const bank_name = bankNameInput ? bankNameInput.value.trim() : '';
+    const account_number = accountNumberInput ? accountNumberInput.value.trim() : '';
+    const account_holder = accountHolderInput ? accountHolderInput.value.trim() : '';
+    const description = descriptionInput ? descriptionInput.value.trim() : '';
+    
+    if (!bank_name || !account_number || !account_holder) {
+        if (errorMsg) errorMsg.innerText = 'Vui lòng điền đầy đủ các thông tin bắt buộc.';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/bank-accounts', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ bank_name, account_number, account_holder, description })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Lỗi thêm tài khoản ngân hàng.');
+        
+        showNotification(result.message, 'success');
+        
+        // Reset form inputs
+        if (bankNameInput) bankNameInput.value = '';
+        if (accountNumberInput) accountNumberInput.value = '';
+        if (accountHolderInput) accountHolderInput.value = '';
+        if (descriptionInput) descriptionInput.value = '';
+        
+        // Reload list
+        await loadBankAccounts();
+    } catch (e) {
+        if (errorMsg) errorMsg.innerText = e.message;
+    }
+}
+
+// XÓA TÀI KHOẢN NGÂN HÀNG
+async function deleteBankAccount(id) {
+    if (!confirm('Bạn có chắc chắn muốn xóa tài khoản ngân hàng thụ hưởng này?\nCác hợp đồng liên kết với tài khoản này sẽ bị hủy bỏ liên kết (trở về trống).')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/bank-accounts/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Lỗi xóa tài khoản ngân hàng.');
+        
+        showNotification(result.message, 'success');
+        await loadBankAccounts();
+        
+        // Load lại tab hiện tại để cập nhật hiển thị nếu cần
+        refreshCurrentTab();
+    } catch (e) {
+        showNotification(e.message, 'error');
     }
 }
 

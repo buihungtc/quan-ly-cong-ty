@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ thống Quản lý Tiến độ Hợp đồng 2026</title>
+    <title>Vận hành Doanh nghiệp 2026</title>
     <!-- Font chữ hiện đại -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,45 +24,114 @@
     <!-- Nền chuyển động mượt mà -->
     <div class="bg-gradient"></div>
 
-    <div class="app-container">
-        <!-- HEADER -->
-        <header class="glass-header">
-            <div class="logo-section">
-                <i class="fa-solid fa-file-signature logo-icon"></i>
-                <div>
-                    <h1>Hợp Đồng 2026</h1>
-                    <p>Hệ thống theo dõi tiến độ thực hiện</p>
+    <div class="app-layout">
+        <!-- SIDEBAR ĐIỀU HƯỚNG -->
+        <aside id="app-sidebar" class="glass-sidebar">
+            <div class="sidebar-logo">
+                <i class="fa-solid fa-gears"></i>
+                <div class="sidebar-logo-text">
+                    <h1>Vận Hành 2026</h1>
+                    <p>Vận hành doanh nghiệp</p>
                 </div>
             </div>
             
-            <nav class="nav-tabs">
-                <button class="tab-btn active" data-tab="processing">
-                    <i class="fa-solid fa-spinner spinner-pulse"></i> Đang Xử Lý
+            <ul class="sidebar-menu">
+                <li class="menu-title">Chức năng chính</li>
+                
+                <!-- HỢP ĐỒNG -->
+                <li class="menu-item open">
+                    <div class="menu-link" onclick="toggleSubmenu(this)">
+                        <div class="menu-link-left">
+                            <i class="fa-solid fa-file-signature"></i>
+                            <span>Hợp Đồng</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <ul class="submenu-list" style="display: flex;">
+                        <li>
+                            <div class="submenu-link active" data-tab="processing">
+                                <i class="fa-solid fa-spinner spinner-pulse"></i> Đang xử lý
+                            </div>
+                        </li>
+                        <li>
+                            <div class="submenu-link" data-tab="completed">
+                                <i class="fa-solid fa-circle-check"></i> Đã hoàn thành
+                            </div>
+                        </li>
+                        <li>
+                            <div class="submenu-link" data-tab="statistics">
+                                <i class="fa-solid fa-chart-pie"></i> Thống kê
+                            </div>
+                        </li>
+                        <li>
+                            <div class="submenu-link" data-tab="ai-writer">
+                                <i class="fa-solid fa-robot"></i> Soạn thảo AI
+                            </div>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- KỊCH BẢN -->
+                <li class="menu-item">
+                    <div class="menu-link" data-tab="script">
+                        <div class="menu-link-left">
+                            <i class="fa-solid fa-scroll"></i>
+                            <span>Kịch Bản</span>
+                        </div>
+                    </div>
+                </li>
+                
+                <!-- QUẢN LÝ PHIÊN LIVE -->
+                <li class="menu-item">
+                    <div class="menu-link" data-tab="live">
+                        <div class="menu-link-left">
+                            <i class="fa-solid fa-tower-broadcast"></i>
+                            <span>Quản Lý Phiên Live</span>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <button id="settings-btn" class="btn btn-secondary admin-only" disabled onclick="openSettingsModal()" title="Cài đặt hệ thống" style="width: 100%; justify-content: center; padding: 8px;">
+                    <i class="fa-solid fa-gear"></i> Cài đặt
                 </button>
-                <button class="tab-btn" data-tab="completed">
-                    <i class="fa-solid fa-circle-check"></i> Đã Hoàn Thành
-                </button>
-                <button class="tab-btn" data-tab="statistics">
-                    <i class="fa-solid fa-chart-pie"></i> Thống Kê
-                </button>
-                <button class="tab-btn" data-tab="ai-writer">
-                    <i class="fa-solid fa-robot"></i> Soạn Thảo AI
-                </button>
-            </nav>
-
-            <div class="auth-section">
-                <span id="role-badge" class="badge-role guest"><i class="fa-solid fa-user-lock"></i> Chỉ xem</span>
-                <button id="settings-btn" class="btn btn-secondary admin-only" disabled onclick="openSettingsModal()" title="Cài đặt hệ thống">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
-                <button id="auth-btn" class="btn btn-secondary">
-                    <i class="fa-solid fa-key"></i> Mở khóa Admin
+                <div class="sidebar-user-info">
+                    <i class="fa-solid fa-circle-user user-avatar" style="font-size: 24px; color: var(--text-secondary);"></i>
+                    <div class="user-details">
+                        <span class="username" id="sidebar-username">guest</span>
+                        <span id="role-badge" class="badge-role guest" style="padding: 2px 8px; font-size: 10px;"><i class="fa-solid fa-user-lock"></i> Chỉ xem</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="btn btn-danger" onclick="handleLogout()" style="width: 100%; justify-content: center; padding: 8px;">
+                    <i class="fa-solid fa-sign-out-alt"></i> Đăng xuất
                 </button>
             </div>
-        </header>
-
-        <!-- NỘI DUNG CHÍNH -->
-        <main class="main-content">
+        </aside>
+        
+        <!-- MAIN CONTENT PANEL -->
+        <div class="main-panel">
+            <!-- Mobile Topbar -->
+            <div class="mobile-topbar">
+                <button class="hamburger-btn" onclick="toggleMobileSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <span class="mobile-title">Vận Hành Doanh Nghiệp 2026</span>
+                <div style="width: 30px;"></div> <!-- Spacer -->
+            </div>
+            
+            <!-- Sidebar mobile overlay -->
+            <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+            
+            <!-- Glass Navbar -->
+            <header class="glass-navbar">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="ngrok-status" id="ngrok-status-badge" style="display:none;"></span>
+                </div>
+            </header>
+            
+            <!-- NỘI DUNG CHÍNH -->
+            <main class="main-content">
             <!-- TAB ĐANG XỬ LÝ -->
             <section id="tab-processing" class="tab-pane active">
                 <div class="action-bar">
@@ -94,8 +163,14 @@
 
             <!-- TAB THỐNG KÊ -->
             <section id="tab-statistics" class="tab-pane">
-                <div class="action-bar">
+                <div class="action-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <h2>Thống kê & Báo cáo hiệu suất</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="filter-stats-bank" style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">Tài khoản nhận tiền:</label>
+                        <select id="filter-stats-bank" onchange="loadStatistics()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(15, 23, 42, 0.45); color: #fff; font-size: 0.9rem; outline: none; cursor: pointer; min-width: 200px;">
+                            <option value="">-- Tất cả tài khoản --</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <!-- Thẻ chỉ số chính KPI -->
@@ -245,6 +320,134 @@
                         <div class="editor-paper-wrapper">
                             <div id="contract-paper-editor" class="paper-editor" contenteditable="true" placeholder="Nội dung bản thảo hợp đồng sẽ xuất hiện tại đây. Bạn có thể tự do gõ và chỉnh sửa trực tiếp trên trang giấy này..."></div>
                         </div>
+                </div>
+            </section>
+
+            <!-- TAB KỊCH BẢN -->
+            <section id="tab-script" class="tab-pane">
+                <div class="action-bar">
+                    <h2>Kịch Bản Bán Hàng & Livestream</h2>
+                    <button class="btn btn-primary admin-only" disabled onclick="showNotification('Tính năng tạo kịch bản mới sẽ được ra mắt trong phiên bản tiếp theo!', 'info')">
+                        <i class="fa-solid fa-plus"></i> Thêm Kịch Bản
+                    </button>
+                </div>
+                
+                <div class="placeholder-view-container">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <i class="fa-solid fa-scroll" style="font-size: 3rem; color: var(--color-primary); margin-bottom: 15px;"></i>
+                        <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto;">Quản lý và thiết lập các kịch bản trả lời tự động, kịch bản chốt đơn trên các phiên livestream và tin nhắn tự động.</p>
+                    </div>
+                    
+                    <div class="script-grid">
+                        <div class="premium-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-role admin" style="padding: 2px 8px; font-size: 11px;"><i class="fa-solid fa-check"></i> Đang hoạt động</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">Cập nhật: Hôm nay</span>
+                            </div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 8px;">Kịch bản Live Bán Quần Áo</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); flex-grow: 1;">Kịch bản chốt đơn tự động khi khách hàng comment cú pháp [Mã sản phẩm + Số điện thoại]. Tích hợp AI tạo tương tác.</p>
+                            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                                <button class="btn btn-secondary btn-small" style="flex: 1; justify-content: center; padding: 6px;" onclick="showNotification('Đang tải kịch bản...', 'info')"><i class="fa-solid fa-eye"></i> Xem</button>
+                                <button class="btn btn-primary btn-small admin-only" disabled style="flex: 1; justify-content: center; padding: 6px;"><i class="fa-solid fa-pen-to-square"></i> Sửa</button>
+                            </div>
+                        </div>
+                        
+                        <div class="premium-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-role admin" style="padding: 2px 8px; font-size: 11px;"><i class="fa-solid fa-check"></i> Đang hoạt động</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">Cập nhật: Hôm qua</span>
+                            </div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 8px;">Kịch bản Chatbot Mỹ Phẩm</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); flex-grow: 1;">Tự động tư vấn da và giới thiệu bộ sản phẩm phù hợp khi khách hàng gửi tin nhắn. Sử dụng AI Gemini phân tích da.</p>
+                            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                                <button class="btn btn-secondary btn-small" style="flex: 1; justify-content: center; padding: 6px;" onclick="showNotification('Đang tải kịch bản...', 'info')"><i class="fa-solid fa-eye"></i> Xem</button>
+                                <button class="btn btn-primary btn-small admin-only" disabled style="flex: 1; justify-content: center; padding: 6px;"><i class="fa-solid fa-pen-to-square"></i> Sửa</button>
+                            </div>
+                        </div>
+
+                        <div class="premium-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-role guest" style="padding: 2px 8px; font-size: 11px; background: rgba(251, 191, 36, 0.1); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2);"><i class="fa-solid fa-pause"></i> Bản nháp</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">Cập nhật: 3 ngày trước</span>
+                            </div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 8px;">Kịch bản Tri ân Khách hàng</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); flex-grow: 1;">Tự động gửi voucher giảm giá và lời chúc mừng sinh nhật cho khách hàng thân thiết hàng tháng.</p>
+                            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                                <button class="btn btn-secondary btn-small" style="flex: 1; justify-content: center; padding: 6px;" onclick="showNotification('Đang tải bản thảo...', 'info')"><i class="fa-solid fa-eye"></i> Xem</button>
+                                <button class="btn btn-primary btn-small admin-only" disabled style="flex: 1; justify-content: center; padding: 6px;"><i class="fa-solid fa-pen-to-square"></i> Sửa</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB QUẢN LÝ PHIÊN LIVE -->
+            <section id="tab-live" class="tab-pane">
+                <div class="action-bar">
+                    <h2>Quản Lý Phiên Livestream</h2>
+                    <button class="btn btn-primary admin-only" disabled onclick="showNotification('Tính năng tạo phiên live mới sẽ được ra mắt trong phiên bản tiếp theo!', 'info')">
+                        <i class="fa-solid fa-plus"></i> Tạo Phiên Live
+                    </button>
+                </div>
+                
+                <div class="placeholder-view-container">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: rgba(15, 23, 42, 0.3); padding: 15px; border-radius: 12px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <span style="font-size: 13px; color: var(--text-secondary);">Thống kê nhanh hôm nay:</span>
+                            <div style="display: flex; gap: 20px; margin-top: 5px; flex-wrap: wrap;">
+                                <span><i class="fa-solid fa-eye" style="color: #fbbf24; margin-right: 5px;"></i> 1.2K Mắt xem cao nhất</span>
+                                <span><i class="fa-solid fa-cart-shopping" style="color: #34d399; margin-right: 5px;"></i> 184 Đơn hàng thành công</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="showNotification('Đang đồng bộ dữ liệu livestream...', 'info')"><i class="fa-solid fa-arrows-rotate"></i> Đồng bộ</button>
+                    </div>
+                    
+                    <div class="live-grid">
+                        <div class="premium-card" style="border-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-live-status streaming"><i class="fa-solid fa-circle"></i> Đang Phát</span>
+                                <span style="font-size: 12px; color: #f87171; font-weight: 600;"><i class="fa-solid fa-users"></i> 342 mắt xem</span>
+                            </div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 8px;">Phiên Live Trưa 30/06</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); flex-grow: 1;">Livestream xả kho hè, giảm giá sốc các sản phẩm thời trang. AI đang tự động gửi cú pháp chốt đơn.</p>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); background: rgba(0,0,0,0.1); padding: 8px; border-radius: 6px; margin-top: 10px;">
+                                <span>Đơn hàng: <b>62</b></span>
+                                <span>Doanh thu: <b style="color: #34d399;">12.4 Tr VND</b></span>
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                                <button class="btn btn-secondary btn-small" style="flex: 1; justify-content: center; padding: 6px;" onclick="showNotification('Đang mở màn hình giám sát livestream...', 'info')"><i class="fa-solid fa-desktop"></i> Giám sát</button>
+                                <button class="btn btn-danger btn-small admin-only" disabled style="flex: 1; justify-content: center; padding: 6px;"><i class="fa-solid fa-circle-stop"></i> Dừng live</button>
+                            </div>
+                        </div>
+                        
+                        <div class="premium-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-live-status upcoming"><i class="fa-solid fa-calendar-days"></i> Sắp diễn ra</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">Bắt đầu: 20:00 tối nay</span>
+                            </div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 8px;">Phiên Live Chợ Tối 30/06</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); flex-grow: 1;">Phiên live giới thiệu bộ sưu tập mỹ phẩm mới và mini game tặng quà cho khách hàng may mắn.</p>
+                            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                                <button class="btn btn-secondary btn-small" style="flex: 1; justify-content: center; padding: 6px;" onclick="showNotification('Đang mở trang chuẩn bị phiên live...', 'info')"><i class="fa-solid fa-gear"></i> Setup</button>
+                                <button class="btn btn-primary btn-small admin-only" disabled style="flex: 1; justify-content: center; padding: 6px;"><i class="fa-solid fa-play"></i> Bắt đầu</button>
+                            </div>
+                        </div>
+
+                        <div class="premium-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="badge-live-status ended"><i class="fa-solid fa-circle-check"></i> Đã kết thúc</span>
+                                <span style="font-size: 12px; color: var(--text-secondary);">29/06/2026</span>
+                            </div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 8px;">Livestream Chốt Đơn 29/06</h3>
+                            <p style="font-size: 13px; color: var(--text-secondary); flex-grow: 1;">Phiên livestream thành công vượt mong đợi, chốt hơn 120 đơn hàng mỹ phẩm. Thời lượng: 2 giờ 15 phút.</p>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); background: rgba(0,0,0,0.1); padding: 8px; border-radius: 6px; margin-top: 10px;">
+                                <span>Đơn hàng: <b>122</b></span>
+                                <span>Doanh thu: <b style="color: #34d399;">28.5 Tr VND</b></span>
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                                <button class="btn btn-secondary btn-small" style="flex: 1; justify-content: center; padding: 6px;" onclick="showNotification('Đang tải báo cáo livestream...', 'info')"><i class="fa-solid fa-chart-line"></i> Báo cáo</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -253,7 +456,7 @@
         <!-- FOOTER TÁC GIẢ -->
         <footer class="app-footer">
             <div class="footer-inner">
-                <span class="footer-copy">© 2026 — Hệ thống Quản lý Hợp đồng</span>
+                <span class="footer-copy">© 2026 — Hệ thống Vận hành Doanh nghiệp</span>
                 <div class="footer-author">
                     <span class="footer-dev-label">Lập trình bởi:</span>
                     <span class="footer-dev-name">Bùi Duy Hưng</span>
@@ -268,31 +471,45 @@
             </div>
         </footer>
     </div>
+</div>
 
-    <!-- ================== MODAL: ĐĂNG NHẬP / MỞ KHÓA ADMIN ================== -->
-    <div id="auth-modal" class="modal-overlay">
-        <div class="modal-content glass-modal small-modal">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-lock"></i> Xác thực Quyền Admin</h3>
-                <button class="close-modal-btn" onclick="closeModal('auth-modal')">&times;</button>
+    <!-- ================== MODAL: ĐĂNG NHẬP HỆ THỐNG ================== -->
+    <div id="login-modal" class="modal-overlay" style="display: flex; align-items: center; justify-content: center; backdrop-filter: blur(15px); background: rgba(15, 23, 42, 0.85); z-index: 9999;">
+        <div class="modal-content glass-modal small-modal" style="width: 95%; max-width: 400px; padding: 25px; border: 1px solid rgba(255,255,255,0.1);">
+            <div class="modal-header" style="justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 12px;">
+                <h3 style="display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 20px;">
+                    <i class="fa-solid fa-gears logo-icon" style="font-size: 32px; color: #38bdf8;"></i>
+                    Đăng Nhập Hệ Thống
+                </h3>
             </div>
-            <form id="auth-form" onsubmit="handleAuthSubmit(event)">
-                <div class="modal-body">
-                    <p class="modal-hint">Vui lòng nhập Mã khóa (Passcode) để kích hoạt quyền chỉnh sửa dữ liệu.</p>
-                    <div class="form-group">
-                        <label for="admin-passcode">Mã khóa (Passcode)</label>
+            <form id="login-form" onsubmit="handleLoginSubmit(event)">
+                <div class="modal-body" style="padding: 0;">
+                    <p class="modal-hint" style="text-align: center; margin-bottom: 15px; font-size: 13px; color: #94a3b8;">Nhập tài khoản và mật khẩu của bạn để sử dụng hệ thống.</p>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="login-username">Tên đăng nhập</label>
+                        <input type="text" id="login-username" placeholder="Nhập tên đăng nhập..." required autocomplete="username" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="login-password">Mật khẩu</label>
                         <div class="passcode-input-wrapper">
-                            <input type="password" id="admin-passcode" placeholder="Nhập mã khóa..." required autocomplete="off">
-                            <button type="button" id="toggle-pwd-btn" onclick="togglePasswordVisibility()">
+                            <input type="password" id="login-password" placeholder="Nhập mật khẩu..." required autocomplete="current-password" style="width: 100%;">
+                            <button type="button" id="toggle-login-pwd-btn" onclick="toggleLoginPasswordVisibility()">
                                 <i class="fa-solid fa-eye"></i>
                             </button>
                         </div>
-                        <span id="auth-error-msg" class="error-text"></span>
+                        <span id="login-error-msg" class="error-text" style="display: block; margin-top: 5px; color: #f87171; text-align: center; font-size: 12px;"></span>
+                    </div>
+                    
+                    <div style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.08); padding: 10px; border-radius: 6px; font-size: 12px; color: #94a3b8; margin-top: 15px; margin-bottom: 15px;">
+                        <div style="font-weight: 600; margin-bottom: 4px; color: #38bdf8;"><i class="fa-solid fa-circle-info"></i> Tài khoản mặc định:</div>
+                        <div>• Quản trị viên: <code>admin</code> / <code>admin</code></div>
+                        <div>• Tài khoản Khách: <code>guest</code> / <code>guest</code></div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('auth-modal')">Hủy</button>
-                    <button type="submit" class="btn btn-primary">Xác nhận</button>
+                <div class="modal-footer" style="padding: 0; border-top: none; margin-top: 15px;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fa-solid fa-right-to-bracket"></i> Đăng Nhập
+                    </button>
                 </div>
             </form>
         </div>
@@ -300,13 +517,13 @@
 
     <!-- ================== MODAL: CÀI ĐẶT HỆ THỐNG ================== -->
     <div id="settings-modal" class="modal-overlay">
-        <div class="modal-content glass-modal small-modal">
+        <div class="modal-content glass-modal" style="max-width: 500px; width: 95%;">
             <div class="modal-header">
                 <h3><i class="fa-solid fa-gear"></i> Cài đặt Hệ thống</h3>
                 <button class="close-modal-btn" onclick="closeModal('settings-modal')">&times;</button>
             </div>
             <form id="settings-form" onsubmit="handleSettingsSubmit(event)">
-                <div class="modal-body">
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto; padding-right: 8px;">
                     <div class="form-group">
                         <label for="settings-gemini-key">Claude API Key</label>
                         <input type="password" id="settings-gemini-key" placeholder="Nhập Claude API Key để dùng AI...">
@@ -316,10 +533,60 @@
                         <input type="password" id="settings-ngrok-token" placeholder="Nhập Ngrok token...">
                     </div>
                     <div class="form-group">
-                        <label for="settings-passcode">Đổi Mã khóa Admin mới</label>
-                        <input type="password" id="settings-passcode" placeholder="Mã khóa mới...">
+                        <label for="settings-passcode">Đổi Mật Khẩu Admin Mới</label>
+                        <input type="password" id="settings-passcode" placeholder="Mật khẩu Admin mới (để trống nếu không đổi)...">
                     </div>
                     
+                    <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                    <h4 style="margin-bottom: 15px; color: #38bdf8;"><i class="fa-solid fa-users-gear"></i> Quản lý Tài khoản Khách (Guest)</h4>
+                    
+                    <!-- Form tạo tài khoản guest -->
+                    <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">
+                        <div style="font-weight: 500; font-size: 13px; margin-bottom: 10px; color: #fbbf24;">Tạo tài khoản Khách mới:</div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <input type="text" id="guest-username-input" placeholder="Tên đăng nhập..." style="padding: 8px; font-size: 13px; flex: 1; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.45); color: #fff;">
+                            <input type="password" id="guest-password-input" placeholder="Mật khẩu..." style="padding: 8px; font-size: 13px; flex: 1; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.45); color: #fff;">
+                        </div>
+                        <button type="button" class="btn btn-primary btn-small" onclick="handleCreateGuestSubmit()" style="width: 100%; padding: 8px; font-size: 12px;">
+                            <i class="fa-solid fa-user-plus"></i> Tạo Tài Khoản Khách
+                        </button>
+                        <span id="guest-error-msg" class="error-text" style="display: block; margin-top: 5px; font-size: 12px; color: #f87171;"></span>
+                    </div>
+                    
+                    <!-- Danh sách tài khoản guest -->
+                    <div style="background: rgba(15,23,42,0.4); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">
+                        <div style="font-weight: 500; font-size: 13px; margin-bottom: 8px; color: #94a3b8;">Danh sách tài khoản Khách hiện có:</div>
+                        <div id="guest-users-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; padding-right: 4px;">
+                            <!-- Sẽ render động bằng JS -->
+                        </div>
+                    </div>
+
+                    <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                    <h4 style="margin-bottom: 15px; color: #38bdf8;"><i class="fa-solid fa-building-columns"></i> Quản lý Ngân hàng Thụ hưởng</h4>
+                    
+                    <!-- Form tạo tài khoản ngân hàng -->
+                    <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">
+                        <div style="font-weight: 500; font-size: 13px; margin-bottom: 10px; color: #fbbf24;">Thêm ngân hàng thụ hưởng mới:</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+                            <input type="text" id="bank-name-input" placeholder="Tên ngân hàng (ví dụ: Vietcombank)..." style="padding: 8px; font-size: 13px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.45); color: #fff;">
+                            <input type="text" id="bank-account-number-input" placeholder="Số tài khoản..." style="padding: 8px; font-size: 13px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.45); color: #fff;">
+                            <input type="text" id="bank-account-holder-input" placeholder="Tên chủ tài khoản..." style="padding: 8px; font-size: 13px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.45); color: #fff;">
+                            <input type="text" id="bank-description-input" placeholder="Ghi chú (tùy chọn)..." style="padding: 8px; font-size: 13px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.45); color: #fff;">
+                        </div>
+                        <button type="button" class="btn btn-primary btn-small" onclick="handleCreateBankAccountSubmit()" style="width: 100%; padding: 8px; font-size: 12px; justify-content: center;">
+                            <i class="fa-solid fa-plus"></i> Thêm Ngân Hàng
+                        </button>
+                        <span id="bank-error-msg" class="error-text" style="display: block; margin-top: 5px; font-size: 12px; color: #f87171;"></span>
+                    </div>
+                    
+                    <!-- Danh sách tài khoản ngân hàng -->
+                    <div style="background: rgba(15,23,42,0.4); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-weight: 500; font-size: 13px; margin-bottom: 8px; color: #94a3b8;">Danh sách tài khoản thụ hưởng hiện có:</div>
+                        <div id="bank-accounts-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px;">
+                            <!-- Sẽ render động bằng JS -->
+                        </div>
+                    </div>
+
                     <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                     <h4 style="margin-bottom: 15px; color: #38bdf8;"><i class="fa-brands fa-telegram"></i> Cài đặt Gửi báo cáo Telegram tự động</h4>
                     
@@ -394,6 +661,13 @@
                             <label for="input-end-date">Ngày Kết Thúc</label>
                             <input type="date" id="input-end-date" placeholder="dd/mm/yyyy">
                         </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="input-bank-account">Ngân Hàng Thụ Hưởng Nhận Tiền</label>
+                        <select id="input-bank-account" style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(15, 23, 42, 0.45); color: #fff; width: 100%; font-size: 0.95rem; outline: none; cursor: pointer;">
+                            <option value="">-- Chọn ngân hàng thụ hưởng --</option>
+                        </select>
                     </div>
                     
                     <!-- Phần danh sách đợt thanh toán -->

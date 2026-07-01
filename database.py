@@ -67,7 +67,29 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            token TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     
+    # Gieo người dùng mặc định
+    cursor.execute('SELECT COUNT(*) as count FROM users')
+    if cursor.fetchone()['count'] == 0:
+        cursor.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', ('admin', 'admin', 'admin'))
+        cursor.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', ('guest', 'guest', 'guest'))
+
     # Gieo dữ liệu mặc định (Seeding)
     cursor.execute('SELECT COUNT(*) as count FROM contract_templates')
     count = cursor.fetchone()['count']
@@ -102,6 +124,22 @@ def init_db():
         cursor.execute('INSERT INTO contract_templates (name, content) VALUES (?, ?)', ("Hợp đồng thuê nhà mẫu", thue_nha_text))
         cursor.execute('INSERT INTO contract_templates (name, content) VALUES (?, ?)', ("Hợp đồng dịch vụ mẫu", dich_vu_text))
 
+    # Khoi tao bang tai khoan ngan hang
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bank_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bank_name TEXT NOT NULL,
+            account_number TEXT NOT NULL UNIQUE,
+            account_holder TEXT NOT NULL,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    try:
+        cursor.execute("ALTER TABLE contracts ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -110,9 +148,20 @@ def get_contracts(status=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     if status:
-        cursor.execute('SELECT * FROM contracts WHERE status = ? ORDER BY created_at DESC', (status,))
+        cursor.execute('''
+            SELECT c.*, b.bank_name, b.account_number, b.account_holder
+            FROM contracts c
+            LEFT JOIN bank_accounts b ON c.bank_account_id = b.id
+            WHERE c.status = ?
+            ORDER BY c.created_at DESC
+        ''', (status,))
     else:
-        cursor.execute('SELECT * FROM contracts ORDER BY created_at DESC')
+        cursor.execute('''
+            SELECT c.*, b.bank_name, b.account_number, b.account_holder
+            FROM contracts c
+            LEFT JOIN bank_accounts b ON c.bank_account_id = b.id
+            ORDER BY c.created_at DESC
+        ''')
     rows = cursor.fetchall()
     
     contracts = [dict(row) for row in rows]
@@ -129,7 +178,12 @@ def get_contract_by_id(contract_id):
     """Lấy chi tiết hợp đồng theo ID"""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM contracts WHERE id = ?', (contract_id,))
+    cursor.execute('''
+        SELECT c.*, b.bank_name, b.account_number, b.account_holder
+        FROM contracts c
+        LEFT JOIN bank_accounts b ON c.bank_account_id = b.id
+        WHERE c.id = ?
+    ''', (contract_id,))
     row = cursor.fetchone()
     if row:
         contract = dict(row)
@@ -142,7 +196,7 @@ def get_contract_by_id(contract_id):
     conn.close()
     return contract
 
-def add_contract(contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data=None, tasks_data=None):
+def add_contract(contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data=None, tasks_data=None, bank_account_id=None):
     """Thêm hợp đồng mới kèm các đợt thanh toán và các nhiệm vụ checklist"""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -152,9 +206,9 @@ def add_contract(contract_code, partner_name, value, start_date, end_date, progr
             contract_code = f"HD-CHUA-KY-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
         cursor.execute('''
-            INSERT INTO contracts (contract_code, partner_name, value, start_date, end_date, progress_notes, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'processing')
-        ''', (contract_code, partner_name, value, start_date, end_date, progress_notes))
+            INSERT INTO contracts (contract_code, partner_name, value, start_date, end_date, progress_notes, status, bank_account_id)
+            VALUES (?, ?, ?, ?, ?, ?, 'processing', ?)
+        ''', (contract_code, partner_name, value, start_date, end_date, progress_notes, bank_account_id))
         contract_id = cursor.lastrowid
         
         # Thêm đợt thanh toán nếu có
@@ -202,16 +256,16 @@ def add_contract(contract_code, partner_name, value, start_date, end_date, progr
         conn.close()
         return None, str(e)
 
-def update_contract(contract_id, contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data=None, tasks_data=None):
+def update_contract(contract_id, contract_code, partner_name, value, start_date, end_date, progress_notes, installments_data=None, tasks_data=None, bank_account_id=None):
     """Cập nhật toàn bộ thông tin hợp đồng kèm các đợt thanh toán và tasks"""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
             UPDATE contracts 
-            SET contract_code = ?, partner_name = ?, value = ?, start_date = ?, end_date = ?, progress_notes = ?
+            SET contract_code = ?, partner_name = ?, value = ?, start_date = ?, end_date = ?, progress_notes = ?, bank_account_id = ?
             WHERE id = ?
-        ''', (contract_code, partner_name, value, start_date, end_date, progress_notes, contract_id))
+        ''', (contract_code, partner_name, value, start_date, end_date, progress_notes, bank_account_id, contract_id))
         
         # Cập nhật đợt thanh toán
         if installments_data is not None:
@@ -326,34 +380,35 @@ def delete_contract(contract_id):
     conn.close()
     return affected > 0
 
-def update_installment_payment(installment_id, is_paid, paid_date):
-    """Cập nhật trạng thái thanh toán của một đợt"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE installments 
-        SET is_paid = ?, paid_date = ? 
-        WHERE id = ?
-    ''', (1 if is_paid else 0, paid_date if is_paid else None, installment_id))
-    conn.commit()
-    affected = cursor.rowcount
-    conn.close()
-    return affected > 0
-
-def get_statistics():
-    """Lấy các số liệu thống kê cho biểu đồ và báo cáo"""
+def get_statistics(bank_account_id=None):
+    """Lấy các số liệu thống kê cho biểu đồ và báo cáo, có thể lọc theo tài khoản ngân hàng"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Kiem tra xem co su dung bo loc tai khoan ngan hang khong
+    has_filter = bank_account_id is not None and str(bank_account_id).strip() != ''
+    filter_val = int(bank_account_id) if has_filter else None
+    
     # 1. Tổng quan số lượng và giá trị theo từng trạng thái
-    cursor.execute('''
-        SELECT 
-            status, 
-            COUNT(*) as count, 
-            SUM(value) as total_value 
-        FROM contracts 
-        GROUP BY status
-    ''')
+    if has_filter:
+        cursor.execute('''
+            SELECT 
+                status, 
+                COUNT(*) as count, 
+                SUM(value) as total_value 
+            FROM contracts 
+            WHERE bank_account_id = ?
+            GROUP BY status
+        ''', (filter_val,))
+    else:
+        cursor.execute('''
+            SELECT 
+                status, 
+                COUNT(*) as count, 
+                SUM(value) as total_value 
+            FROM contracts 
+            GROUP BY status
+        ''')
     status_summary = {row['status']: {'count': row['count'], 'total_value': row['total_value'] or 0} for row in cursor.fetchall()}
     
     # Đảm bảo đủ các trạng thái trong cấu trúc
@@ -363,11 +418,18 @@ def get_statistics():
             
     # 2. Hợp đồng trễ hạn (Đang xử lý và ngày kết thúc < ngày hiện tại)
     today_str = datetime.now().strftime('%Y-%m-%d')
-    cursor.execute('''
-        SELECT COUNT(*) as count, SUM(value) as total_value 
-        FROM contracts 
-        WHERE status = 'processing' AND end_date < ?
-    ''', (today_str,))
+    if has_filter:
+        cursor.execute('''
+            SELECT COUNT(*) as count, SUM(value) as total_value 
+            FROM contracts 
+            WHERE status = 'processing' AND end_date < ? AND bank_account_id = ?
+        ''', (today_str, filter_val))
+    else:
+        cursor.execute('''
+            SELECT COUNT(*) as count, SUM(value) as total_value 
+            FROM contracts 
+            WHERE status = 'processing' AND end_date < ?
+        ''', (today_str,))
     overdue_row = cursor.fetchone()
     overdue_summary = {
         'count': overdue_row['count'] or 0,
@@ -376,13 +438,22 @@ def get_statistics():
     
     # 3. Phân bổ hợp đồng theo tháng (dựa trên start_date) - 12 tháng năm nay
     current_year = datetime.now().year
-    cursor.execute('''
-        SELECT strftime('%m', start_date) as month_num, COUNT(*) as count, SUM(value) as total_value
-        FROM contracts
-        WHERE strftime('%Y', start_date) = ?
-        GROUP BY month_num
-        ORDER BY month_num ASC
-    ''', (str(current_year),))
+    if has_filter:
+        cursor.execute('''
+            SELECT strftime('%m', start_date) as month_num, COUNT(*) as count, SUM(value) as total_value
+            FROM contracts
+            WHERE strftime('%Y', start_date) = ? AND bank_account_id = ?
+            GROUP BY month_num
+            ORDER BY month_num ASC
+        ''', (str(current_year), filter_val))
+    else:
+        cursor.execute('''
+            SELECT strftime('%m', start_date) as month_num, COUNT(*) as count, SUM(value) as total_value
+            FROM contracts
+            WHERE strftime('%Y', start_date) = ?
+            GROUP BY month_num
+            ORDER BY month_num ASC
+        ''', (str(current_year),))
     db_monthly = {row['month_num']: dict(row) for row in cursor.fetchall()}
     
     monthly_data = []
@@ -403,42 +474,78 @@ def get_statistics():
             })
     
     # 4. Doanh thu thực tế (Tổng tiền các đợt đã thanh toán)
-    cursor.execute('''
-        SELECT SUM(amount) as actual_revenue 
-        FROM installments 
-        WHERE is_paid = 1
-    ''')
+    if has_filter:
+        cursor.execute('''
+            SELECT SUM(i.amount) as actual_revenue 
+            FROM installments i
+            JOIN contracts c ON i.contract_id = c.id
+            WHERE i.is_paid = 1 AND c.bank_account_id = ?
+        ''', (filter_val,))
+    else:
+        cursor.execute('''
+            SELECT SUM(amount) as actual_revenue 
+            FROM installments 
+            WHERE is_paid = 1
+        ''')
     actual_revenue_row = cursor.fetchone()
     actual_revenue = actual_revenue_row['actual_revenue'] or 0
     
     # 4.5 Doanh thu chưa nhận được (Tổng tiền các đợt chưa thanh toán)
-    cursor.execute('''
-        SELECT SUM(amount) as unreceived_revenue 
-        FROM installments 
-        WHERE is_paid = 0 OR is_paid IS NULL
-    ''')
+    if has_filter:
+        cursor.execute('''
+            SELECT SUM(i.amount) as unreceived_revenue 
+            FROM installments i
+            JOIN contracts c ON i.contract_id = c.id
+            WHERE (i.is_paid = 0 OR i.is_paid IS NULL) AND c.bank_account_id = ?
+        ''', (filter_val,))
+    else:
+        cursor.execute('''
+            SELECT SUM(amount) as unreceived_revenue 
+            FROM installments 
+            WHERE is_paid = 0 OR is_paid IS NULL
+        ''')
     unreceived_revenue_row = cursor.fetchone()
     unreceived_revenue = unreceived_revenue_row['unreceived_revenue'] or 0
     
     # 5. Danh sách hợp đồng đang thực hiện (Ngắn gọn)
-    cursor.execute('''
-        SELECT c.contract_code, c.partner_name, c.value, c.progress_notes,
-               (c.value - COALESCE((SELECT SUM(amount) FROM installments WHERE contract_id = c.id AND is_paid = 1), 0)) as remaining_value
-        FROM contracts c
-        WHERE c.status = 'processing'
-        ORDER BY c.created_at DESC
-    ''')
+    if has_filter:
+        cursor.execute('''
+            SELECT c.contract_code, c.partner_name, c.value, c.progress_notes,
+                   (c.value - COALESCE((SELECT SUM(amount) FROM installments WHERE contract_id = c.id AND is_paid = 1), 0)) as remaining_value
+            FROM contracts c
+            WHERE c.status = 'processing' AND c.bank_account_id = ?
+            ORDER BY c.created_at DESC
+        ''', (filter_val,))
+    else:
+        cursor.execute('''
+            SELECT c.contract_code, c.partner_name, c.value, c.progress_notes,
+                   (c.value - COALESCE((SELECT SUM(amount) FROM installments WHERE contract_id = c.id AND is_paid = 1), 0)) as remaining_value
+            FROM contracts c
+            WHERE c.status = 'processing'
+            ORDER BY c.created_at DESC
+        ''')
     executing_contracts = [dict(row) for row in cursor.fetchall()]
-
+ 
     # 6. Doanh thu theo tháng (dựa trên ngày thanh toán)
-    cursor.execute('''
-        SELECT strftime('%Y-%m', paid_date) as month, SUM(amount) as revenue
-        FROM installments
-        WHERE is_paid = 1 AND paid_date IS NOT NULL AND paid_date != ''
-        GROUP BY month
-        ORDER BY month ASC
-        LIMIT 12
-    ''')
+    if has_filter:
+        cursor.execute('''
+            SELECT strftime('%Y-%m', i.paid_date) as month, SUM(i.amount) as revenue
+            FROM installments i
+            JOIN contracts c ON i.contract_id = c.id
+            WHERE i.is_paid = 1 AND i.paid_date IS NOT NULL AND i.paid_date != '' AND c.bank_account_id = ?
+            GROUP BY month
+            ORDER BY month ASC
+            LIMIT 12
+        ''', (filter_val,))
+    else:
+        cursor.execute('''
+            SELECT strftime('%Y-%m', paid_date) as month, SUM(amount) as revenue
+            FROM installments
+            WHERE is_paid = 1 AND paid_date IS NOT NULL AND paid_date != ''
+            GROUP BY month
+            ORDER BY month ASC
+            LIMIT 12
+        ''')
     revenue_monthly = [dict(row) for row in cursor.fetchall()]
     
     conn.close()
@@ -541,3 +648,159 @@ def delete_template(template_id):
     affected = cursor.rowcount
     conn.close()
     return affected > 0
+
+def verify_user(username, password):
+    """Xác thực thông tin đăng nhập của người dùng"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT username, role FROM users WHERE username = ? AND password = ?', (username, password))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def generate_token(username, role):
+    """Tạo token phiên đăng nhập và lưu vào cơ sở dữ liệu"""
+    import uuid
+    token = uuid.uuid4().hex
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO user_sessions (token, username, role) VALUES (?, ?, ?)', (token, username, role))
+    conn.commit()
+    conn.close()
+    return token
+
+def verify_session(token):
+    """Kiểm tra token phiên đăng nhập có hợp lệ không"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT username, role FROM user_sessions WHERE token = ?', (token,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def delete_session(token):
+    """Xóa token phiên đăng nhập khi đăng xuất"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM user_sessions WHERE token = ?', (token,))
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
+def update_user_password(username, new_password):
+    """Cập nhật mật khẩu cho một tài khoản"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET password = ? WHERE username = ?', (new_password, username))
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
+def create_guest_user(username, password):
+    """Tạo tài khoản khách mới (Chỉ dành cho Admin)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', (username, password, 'guest'))
+        conn.commit()
+        conn.close()
+        return True, None
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Tên tài khoản khách đã tồn tại."
+    except Exception as e:
+        conn.close()
+        return False, str(e)
+
+def get_guest_users():
+    """Lấy danh sách các tài khoản khách (Chỉ dành cho Admin)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT username, role FROM users WHERE role = 'guest' ORDER BY username ASC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def delete_guest_user(username):
+    """Xóa tài khoản khách (Chỉ dành cho Admin)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE username = ? AND role = 'guest'", (username,))
+    # Xóa cả session của tài khoản này
+    cursor.execute("DELETE FROM user_sessions WHERE username = ?", (username,))
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
+def get_bank_accounts():
+    """Lấy danh sách tất cả các tài khoản ngân hàng thụ hưởng"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM bank_accounts ORDER BY bank_name ASC, account_number ASC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_bank_account_by_id(bank_account_id):
+    """Lấy thông tin tài khoản ngân hàng theo ID"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM bank_accounts WHERE id = ?", (bank_account_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def add_bank_account(bank_name, account_number, account_holder, description=None):
+    """Thêm tài khoản ngân hàng thụ hưởng mới"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO bank_accounts (bank_name, account_number, account_holder, description)
+            VALUES (?, ?, ?, ?)
+        ''', (bank_name, account_number, account_holder, description))
+        account_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return account_id, None
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None, "Số tài khoản ngân hàng này đã tồn tại."
+    except Exception as e:
+        conn.close()
+        return None, str(e)
+
+def update_bank_account(bank_account_id, bank_name, account_number, account_holder, description=None):
+    """Cập nhật thông tin tài khoản ngân hàng thụ hưởng"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE bank_accounts
+            SET bank_name = ?, account_number = ?, account_holder = ?, description = ?
+            WHERE id = ?
+        ''', (bank_name, account_number, account_holder, description, bank_account_id))
+        conn.commit()
+        affected = cursor.rowcount
+        conn.close()
+        return affected > 0, None
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Số tài khoản ngân hàng này đã tồn tại."
+    except Exception as e:
+        conn.close()
+        return False, str(e)
+
+def delete_bank_account(bank_account_id):
+    """Xóa tài khoản ngân hàng thụ hưởng"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM bank_accounts WHERE id = ?", (bank_account_id,))
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
